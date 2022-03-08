@@ -1,10 +1,13 @@
 import torch
 from torch import nn
 from .nerf import Embedding
+import os
+
+DEBUG = os.environ.get("DEBUG", False)
 
 class NeRF_3D(nn.Module):
     def __init__(self,
-                 D=8, W=256,
+                 D=8, W=256, CLS=19,
                  in_channels_xyz=63, in_channels_dir=27, 
                  skips=[4]):
         """
@@ -14,9 +17,10 @@ class NeRF_3D(nn.Module):
         in_channels_dir: number of input channels for direction (3+3*4*2=27 by default)
         skips: add skip connection in the Dth layer
         """
-        super(NeRF, self).__init__()
+        super(NeRF_3D, self).__init__()
         self.D = D
         self.W = W
+        self.CLS = CLS
         self.in_channels_xyz = in_channels_xyz
         self.in_channels_dir = in_channels_dir
         self.skips = skips
@@ -42,6 +46,10 @@ class NeRF_3D(nn.Module):
         self.sigma = nn.Linear(W, 1)
         self.rgb = nn.Sequential(
                         nn.Linear(W//2, 3),
+                        nn.Sigmoid())
+
+        self.parse = nn.Sequential(
+                        nn.Linear(W//2, CLS),
                         nn.Sigmoid())
 
     def forward(self, x, sigma_only=False):
@@ -81,8 +89,13 @@ class NeRF_3D(nn.Module):
 
         dir_encoding_input = torch.cat([xyz_encoding_final, input_dir], -1)
         dir_encoding = self.dir_encoding(dir_encoding_input)
-        rgb = self.rgb(dir_encoding)
+        rgb = self.rgb(dir_encoding) # N_sample x 3 for each rays
+        clss = self.parse(dir_encoding)  #  N_sample x cls for each rays
 
-        out = torch.cat([rgb, sigma], -1)
-
+        out_origin = torch.cat([rgb, sigma], -1)
+        out = torch.cat([rgb, sigma, clss], -1)
+        if DEBUG:
+            print(out_origin.shape, "nerf original shape")
+            print(out.shape, "nerf new shape")
+        
         return out

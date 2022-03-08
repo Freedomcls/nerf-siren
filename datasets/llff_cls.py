@@ -10,7 +10,7 @@ from .ray_utils import *
 from .llff import normalize, average_poses, center_poses, create_spiral_poses, create_spheric_poses
 import cv2
 
-DEBUG = True
+DEBUG = os.environ.get("DEBUG", False)
 
 class LLFFClsDataset(Dataset):
     def __init__(self, root_dir, split='train', img_wh=(1920, 1080), spheric_poses=False, val_num=1):
@@ -79,6 +79,8 @@ class LLFFClsDataset(Dataset):
                                   # use first N_images-1 to train, the LAST is val
             self.all_rays = []
             self.all_rgbs = []
+            self.all_parse = [] # face-parsing 
+
             for i, (image_path, parse_path) in enumerate(zip(self.image_paths, self.parse_path)):
                 if i == val_idx: # exclude the val image
                     continue
@@ -86,19 +88,33 @@ class LLFFClsDataset(Dataset):
 
                 img = Image.open(image_path).convert('RGB')
                 parse_res = cv2.imread(parse_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
-                assert list(parse_res.shape[:2]) == list(img.shape[:2])
-                if DEBUG:
-                    print(parse_res[parse_res!=0])
+                parse_res = parse_res.T #cv2 load inverse h w
                 
-
+                assert list(parse_res.shape[:2]) == list(img.size[:2]),\
+                    f"{parse_res.shape}!={img.size}"
+                if DEBUG:
+                    print(parse_res[parse_res!=0], "Parse Load imread")
+                    print(np.max(parse_res), "Parse Load imread")
+                
                 assert img.size[1]*self.img_wh[0] == img.size[0]*self.img_wh[1], \
                     f'''{image_path} has different aspect ratio than img_wh, 
                         please check your data!'''
 
-                img = img.resize(self.img_wh, Image.LANCZOS)
+                img = img.resize(self.img_wh, Image.LANCZOS) 
+                """
+                Check this to know LANZOS sampling:
+                https://gis.stackexchange.com/questions/10931/what-is-lanczos-resampling-useful-for-in-a-spatial-context
+                """
+                parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]), interpolation=cv2.INTER_LANCZOS4)
                 img = self.transform(img) # (3, h, w)
+                parse_res = self.transform(parse_res)
+                if DEBUG:
+                    print(parse_res.shape, img.size, "Parse Load transform")
                 img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
+                parse_res = parse_res.view(1, -1).permute(1, 0) # (h*w, 1) 
+
                 self.all_rgbs += [img]
+                self.all_parse  += [parse_res]
                 
                 rays_o, rays_d = get_rays(self.directions, c2w) # both (h*w, 3)
                 if not self.spheric_poses:
@@ -118,12 +134,16 @@ class LLFFClsDataset(Dataset):
                                              1)] # (h*w, 8)
                                  
             self.all_rays = torch.cat(self.all_rays, 0) # ((N_images-1)*h*w, 8)
-            self.all_rgbs = torch.cat(self.all_rgbs, 0) # ((N_images-1)*h*w, 3)
+            self.all_rgbs = torch.cat(self.all_rgbs, 0) # ((N_images-1)*h*w, 3) 
+            self.all_parse = torch.cat(self.all_parse, 0)
+            if DEBUG:
+                print(self.all_parse, "concat parse")
         
         elif self.split == 'val':
             print('val image is', self.image_paths[val_idx])
             self.c2w_val = self.poses[val_idx]
             self.image_path_val = self.image_paths[val_idx]
+            self.parse_path_val = self.parse_path[val_idx]
 
         else: # for testing, create a parametric rendering path
             if self.split.endswith('train'): # test on training set
@@ -151,7 +171,9 @@ class LLFFClsDataset(Dataset):
     def __getitem__(self, idx):
         if self.split == 'train': # use data in the buffers
             sample = {'rays': self.all_rays[idx],
-                      'rgbs': self.all_rgbs[idx]}
+                      'rgbs': self.all_rgbs[idx],
+                      'parse': self.all_parse[idx],
+                      }
 
         else:
             if self.split == 'val':
@@ -182,5 +204,10 @@ class LLFFClsDataset(Dataset):
                 img = self.transform(img) # (3, h, w)
                 img = img.view(3, -1).permute(1, 0) # (h*w, 3)
                 sample['rgbs'] = img
+
+                parse = cv2.imread(self.parse_path_val, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
+                parse = parse.T
+                parse = cv2.resize(parse, (self.img_wh[1], self.img_wh[0]), interpolation=cv2.INTER_LANCZOS4)
+                sample["parse"] = parse
 
         return sample
