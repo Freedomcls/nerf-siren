@@ -91,11 +91,8 @@ class NeRF_3D(nn.Module):
         dir_encoding = self.dir_encoding(dir_encoding_input)
         rgb = self.rgb(dir_encoding) # N_sample x 3 for each rays
         clss = self.parse(dir_encoding)  #  N_sample x cls for each rays
-
-        out_origin = torch.cat([rgb, sigma], -1)
-        out = torch.cat([rgb, sigma, clss], -1)
         if DEBUG:
-            print(out_origin.shape, "nerf original shape")
-            print(out.shape, "nerf new shape")
+            print(clss)
+        out = torch.cat([rgb, sigma, clss], -1)
         
         return out
