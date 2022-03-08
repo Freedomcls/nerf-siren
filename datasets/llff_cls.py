@@ -135,7 +135,7 @@ class LLFFClsDataset(Dataset):
                                  
             self.all_rays = torch.cat(self.all_rays, 0) # ((N_images-1)*h*w, 8)
             self.all_rgbs = torch.cat(self.all_rgbs, 0) # ((N_images-1)*h*w, 3) 
-            self.all_parse = torch.cat(self.all_parse, 0)
+            self.all_parse = torch.cat(self.all_parse, 0) 
             if DEBUG:
                 print(self.all_parse, "concat parse")
         
@@ -208,6 +208,11 @@ class LLFFClsDataset(Dataset):
                 parse = cv2.imread(self.parse_path_val, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
                 parse = parse.T
                 parse = cv2.resize(parse, (self.img_wh[1], self.img_wh[0]), interpolation=cv2.INTER_LANCZOS4)
+                parse = self.transform(parse) # (3, h, w)
+                parse = parse.view(1, -1).permute(1, 0) # (h*w, 1)
+                if DEBUG:
+                    print(parse.shape, "val")
+                
                 sample["parse"] = parse
 
         return sample

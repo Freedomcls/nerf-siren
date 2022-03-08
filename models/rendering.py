@@ -1,5 +1,7 @@
 import torch
 from torchsearchsorted import searchsorted
+import os
+DEBUG = os.environ.get("DEBUG", False)
 
 __all__ = ['render_rays', "render_rays_3d"]
 

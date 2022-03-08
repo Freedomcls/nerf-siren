@@ -1,5 +1,7 @@
 import torch
 from torch import nn
+import os
+DEBUG = os.environ.get("DEBUG", False)
 
 class MSELoss(nn.Module):
     def __init__(self):
@@ -29,6 +31,9 @@ class MSECELoss(nn.Module):
         mse_wg = weight
         ce_wg = 1 - weight
         mse_loss = self.mse(inputs['rgb_coarse'], mse_target)
+        ce_target = ce_target.to(torch.long).squeeze()
+        if DEBUG:
+            print(inputs['cls_coarse'].shape, ce_target.shape)
         ce_loss = self.ce(inputs['cls_coarse'], ce_target)
         if "rgb_fine" in inputs:
             mse_loss += self.mse(inputs['rgb_fine'], mse_target)

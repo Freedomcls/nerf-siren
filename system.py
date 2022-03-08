@@ -161,7 +161,10 @@ class NeRF3DSystem(NeRFSystem):
         rays, rgbs, parse = self.decode_batch(batch)
         results = self(rays)
         loss = self.loss(results, rgbs, parse)
-        log['train/loss'] = loss["sum"]
+        log['train/total_loss'] = loss["sum"]
+        log['train/mse_loss'] = loss["mse"]
+        log['train/ce_loss'] = loss["ce"]
+
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
 
         with torch.no_grad():
@@ -169,11 +172,8 @@ class NeRF3DSystem(NeRFSystem):
             log['train/psnr'] = psnr_
             
 
-        return {'loss': loss,
-                'progress_bar': {'train_psnr': psnr_ ,
-                    "train_mse_loss": loss["mse"],
-                    "train_ce_loss": loss["ce"],
-                 }, 
+        return {'loss': loss["sum"],
+                'progress_bar': {'train_psnr': psnr_ }, 
                 'log': log
                }
                
@@ -207,7 +207,8 @@ class NeRF3DSystem(NeRFSystem):
         rgbs = rgbs.squeeze() # (H*W, 3)
         parse = parse.squeeze() # (H*W, CLS)
         results = self(rays)
-        log = {'val_loss': self.loss(results, rgbs, parse)}
+        loss = self.loss(results, rgbs, parse)
+        log = {'val_loss': loss["sum"]}
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
     
         if batch_nb == 0:
@@ -221,4 +222,6 @@ class NeRF3DSystem(NeRFSystem):
                                                stack, self.global_step)
 
         log['val_psnr'] = psnr(results[f'rgb_{typ}'], rgbs)
+        log['val_mse_loss'] = loss["mse"]
+        log['val_ce_loss'] = loss["ce"]
         return log
