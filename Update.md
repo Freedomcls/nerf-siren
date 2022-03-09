@@ -15,9 +15,10 @@
 
     主要改动: 新增了MLP 输出 xyz 的 所属类别.
 
-在以上改动后可正常训练(~~psnr并不随着训练连的进行而增加~~), 测试待测.
+在以上改动后可正常训练 / 训练(~~psnr并不随着训练连的进行而增加~~), 
 
 ```python
+# train
  DEBUG=False python train.py 
    --dataset_name llff_cls \
    --root_dir bowen_tou \
@@ -26,6 +27,12 @@
    --optimizer adam --lr 5e-4 \
    --lr_scheduler steplr --decay_step 10 20 --decay_gamma 0.5 \
    --exp_name exp-bowen --d3 --loss_type msece
+# val
+export CKPT=./ckpts/exp-bowen/epoch=2.ckpt
+python eval.py \
+   --root_dir bowen_tou  \
+   --dataset_name llff_cls --scene_name bowen \
+   --img_wh 1920 1080 --N_importance 64 --ckpt_path $CKPT  --d3
 ```
 
 *一些并不重要的改动*

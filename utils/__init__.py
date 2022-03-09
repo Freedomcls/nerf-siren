@@ -70,7 +70,15 @@ def extract_model_state_dict(ckpt_path, model_name='model', prefixes_to_ignore=[
     return checkpoint_
 
 def load_ckpt(model, ckpt_path, model_name='model', prefixes_to_ignore=[]):
-    model_dict = model.state_dict()
-    checkpoint_ = extract_model_state_dict(ckpt_path, model_name, prefixes_to_ignore)
-    model_dict.update(checkpoint_)
-    model.load_state_dict(model_dict)
+    try:
+        model_dict = model.state_dict()
+        checkpoint_ = extract_model_state_dict(ckpt_path, model_name, prefixes_to_ignore)
+        model_dict.update(checkpoint_)
+        model.load_state_dict(model_dict)
+    except RuntimeError as e:  
+        print("Model keys:")
+        print(model_dict.keys())
+        print("Ckpt Keys:")
+        print(checkpoint_.keys())
+        print(e)
+        exit("----- Load error EXIT -----")

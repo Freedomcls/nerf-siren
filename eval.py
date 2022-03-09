@@ -6,9 +6,9 @@ from tqdm import tqdm
 import imageio
 from argparse import ArgumentParser
 
-from models.rendering import render_rays
+from models.rendering import render_rays, render_rays_3d
 from models.nerf import *
-
+from models.nerf_cls import NeRF_3D
 from utils import load_ckpt
 import metrics
 
@@ -19,11 +19,14 @@ torch.backends.cudnn.benchmark = True
 
 def get_opts():
     parser = ArgumentParser()
+    parser.add_argument('--d3', default=False,
+                        action="store_true",
+                        help='whether to use 3d nerf')
     parser.add_argument('--root_dir', type=str,
                         default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
                         help='root directory of dataset')
     parser.add_argument('--dataset_name', type=str, default='blender',
-                        choices=['blender', 'llff'],
+                        choices=['blender', 'llff', "llff_cls"],
                         help='which dataset to validate')
     parser.add_argument('--scene_name', type=str, default='test',
                         help='scene name, used as output folder name')
@@ -59,14 +62,16 @@ def get_opts():
 def batched_inference(models, embeddings,
                       rays, N_samples, N_importance, use_disp,
                       chunk,
-                      white_back):
+                      white_back,
+                      d3,):
     """Do batched inference on rays using chunk."""
     B = rays.shape[0]
     chunk = 1024*32
     results = defaultdict(list)
+    render_func = render_rays_3d if d3 else render_rays
     for i in range(0, B, chunk):
         rendered_ray_chunks = \
-            render_rays(models,
+            render_func(models,
                         embeddings,
                         rays[i:i+chunk],
                         N_samples,
@@ -93,14 +98,14 @@ if __name__ == "__main__":
     kwargs = {'root_dir': args.root_dir,
               'split': args.split,
               'img_wh': tuple(args.img_wh)}
-    if args.dataset_name == 'llff':
+    if 'llff' in args.dataset_name:
         kwargs['spheric_poses'] = args.spheric_poses
     dataset = dataset_dict[args.dataset_name](**kwargs)
 
     embedding_xyz = Embedding(3, 10)
     embedding_dir = Embedding(3, 4)
-    nerf_coarse = NeRF()
-    nerf_fine = NeRF()
+    nerf_coarse = NeRF_3D() if args.d3 else NeRF()
+    nerf_fine = NeRF_3D() if args.d3 else NeRF()
     load_ckpt(nerf_coarse, args.ckpt_path, model_name='nerf_coarse')
     load_ckpt(nerf_fine, args.ckpt_path, model_name='nerf_fine')
     nerf_coarse.cuda().eval()
@@ -120,7 +125,8 @@ if __name__ == "__main__":
         results = batched_inference(models, embeddings, rays,
                                     args.N_samples, args.N_importance, args.use_disp,
                                     args.chunk,
-                                    dataset.white_back)
+                                    dataset.white_back,
+                                    args.d3)
 
         img_pred = results['rgb_fine'].view(h, w, 3).cpu().numpy()
         
