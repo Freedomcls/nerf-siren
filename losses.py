@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import os
+import numpy as np
 DEBUG = os.environ.get("DEBUG", False)
 
 class MSELoss(nn.Module):
@@ -15,10 +16,6 @@ class MSELoss(nn.Module):
 
         return loss
 
-class CE(nn.CrossEntropyLoss):
-    def forward(self, input, targets, ignore_ids=[]):
-        # input: HxW, HxW
-        pass
 
 class MSECELoss(nn.Module):
     def __init__(self):
@@ -26,17 +23,24 @@ class MSECELoss(nn.Module):
         self.mse = nn.MSELoss(reduction='mean')
         self.ce = nn.CrossEntropyLoss(reduction="mean", ignore_index=-1)
     
-    def forward(self, inputs, mse_target, ce_target, weight=0.9):
+    def forward(self, inputs, mse_target, ce_target, weight=0.6):
+        ce_target = ce_target.squeeze()
+        # ? ingore background ce loss, should we sampling some negative rays ?
         loss = {}
         mse_wg = weight
         ce_wg = 1 - weight
         mse_loss = self.mse(inputs['rgb_coarse'], mse_target)
-        ce_target = ce_target.to(torch.long).squeeze()
+        ce_target = ce_target.to(torch.long)
+        obj_mask = (ce_target != 0 ).to(dtype=torch.long, device=ce_target.device)
 
         if DEBUG:
             print(inputs['cls_coarse'].shape, ce_target.shape, "loss")
+            pred_res = torch.max(inputs['cls_coarse'], axis=-1)
+            print(pred_res , ce_target)
 
+        # ce_loss = self.ce(inputs['cls_coarse'][obj_mask], ce_target[obj_mask])
         ce_loss = self.ce(inputs['cls_coarse'], ce_target)
+
         if "rgb_fine" in inputs:
             mse_loss += self.mse(inputs['rgb_fine'], mse_target)
             ce_loss += self.ce(inputs['cls_fine'], ce_target)

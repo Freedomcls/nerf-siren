@@ -294,7 +294,6 @@ def render_rays_3d(models,
             sigmas = rgbsigmacls[..., 3] # (N_rays, N_samples_)
             """
             NOTE: The class of xyz should be N_rays due to it is image-independent
-            ! Now it is image-dependent for test
             """
             clss = rgbsigmacls[..., 4:] # (N_rays, N_samples_, CLS)
 
