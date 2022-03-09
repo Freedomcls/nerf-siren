@@ -6,6 +6,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, MultiStepLR
 from .warmup_scheduler import GradualWarmupScheduler
 
 from .visualization import *
+from .color import make_atts_map, color_cls
 
 def get_optimizer(hparams, models):
     eps = 1e-8

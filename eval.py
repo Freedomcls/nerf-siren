@@ -9,13 +9,14 @@ from argparse import ArgumentParser
 from models.rendering import render_rays, render_rays_3d
 from models.nerf import *
 from models.nerf_cls import NeRF_3D
-from utils import load_ckpt
+from utils import load_ckpt, color_cls
 import metrics
 
 from datasets import dataset_dict
 from datasets.depth_utils import *
 
 torch.backends.cudnn.benchmark = True
+DEBUG = os.environ.get("DEBUG", False)
 
 def get_opts():
     parser = ArgumentParser()
@@ -129,7 +130,16 @@ if __name__ == "__main__":
                                     args.d3)
 
         img_pred = results['rgb_fine'].view(h, w, 3).cpu().numpy()
-        
+        # add 3d cls
+        if args.d3:
+            cls_num = 19
+            cls_pred = results["cls_fine"].view(h, w, cls_num).cpu().numpy()
+            cls_pred = np.max(cls_pred, axis=-1) # choose max pred
+            if DEBUG:
+                print(cls_pred[cls_pred!=0])
+                color_cls(img_pred, cls_pred, f"./results/{args.dataset_name}/{args.scene_name}_cls_map")
+                
+
         if args.save_depth:
             depth_pred = results['depth_fine'].view(h, w).cpu().numpy()
             depth_pred = np.nan_to_num(depth_pred)

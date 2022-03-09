@@ -26,14 +26,17 @@
    --num_epochs 30 --batch_size 1024 \
    --optimizer adam --lr 5e-4 \
    --lr_scheduler steplr --decay_step 10 20 --decay_gamma 0.5 \
-   --exp_name exp-bowen --d3 --loss_type msece
+   --exp_name exp-bowen --d3 --loss_type msece --spheric
 # val
 export CKPT=./ckpts/exp-bowen/epoch=2.ckpt
 python eval.py \
    --root_dir bowen_tou  \
    --dataset_name llff_cls --scene_name bowen \
-   --img_wh 1920 1080 --N_importance 64 --ckpt_path $CKPT  --d3
+   --img_wh 1920 1080 --N_importance 64 --ckpt_path $CKPT  --d3 \
+   --spheric
 ```
+**记得加上 `--spheric`  因为是3d环绕采集的**
+
 
 *一些并不重要的改动*
 
