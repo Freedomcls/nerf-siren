@@ -92,9 +92,6 @@ class LLFFClsDataset(Dataset):
                 
                 assert list(parse_res.shape[:2]) == list(img.size[:2]),\
                     f"{parse_res.shape}!={img.size}"
-                if DEBUG:
-                    print(parse_res[parse_res!=0], "Parse Load imread")
-                    print(np.max(parse_res), "Parse Load imread")
                 
                 assert img.size[1]*self.img_wh[0] == img.size[0]*self.img_wh[1], \
                     f'''{image_path} has different aspect ratio than img_wh, 
@@ -108,8 +105,6 @@ class LLFFClsDataset(Dataset):
                 parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]), interpolation=cv2.INTER_LANCZOS4)
                 img = self.transform(img) # (3, h, w)
                 parse_res = self.transform(parse_res)
-                if DEBUG:
-                    print(parse_res.shape, img.size, "Parse Load transform")
                 img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
                 parse_res = parse_res.view(1, -1).permute(1, 0) # (h*w, 1) 
 
@@ -136,8 +131,6 @@ class LLFFClsDataset(Dataset):
             self.all_rays = torch.cat(self.all_rays, 0) # ((N_images-1)*h*w, 8)
             self.all_rgbs = torch.cat(self.all_rgbs, 0) # ((N_images-1)*h*w, 3) 
             self.all_parse = torch.cat(self.all_parse, 0) 
-            if DEBUG:
-                print(self.all_parse, "concat parse")
         
         elif self.split == 'val':
             print('val image is', self.image_paths[val_idx])
@@ -208,7 +201,7 @@ class LLFFClsDataset(Dataset):
                 parse = cv2.imread(self.parse_path_val, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
                 parse = parse.T
                 parse = cv2.resize(parse, (self.img_wh[1], self.img_wh[0]), interpolation=cv2.INTER_LANCZOS4)
-                parse = self.transform(parse) # (3, h, w)
+                parse = self.transform(parse) # (1, h, w)
                 parse = parse.view(1, -1).permute(1, 0) # (h*w, 1)
                 if DEBUG:
                     print(parse.shape, "val")

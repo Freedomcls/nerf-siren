@@ -35,7 +35,6 @@ class MSECELoss(nn.Module):
 
         if DEBUG:
             print(inputs['cls_coarse'].shape, ce_target.shape)
-            print(inputs['cls_coarse'], ce_target)
 
         ce_loss = self.ce(inputs['cls_coarse'], ce_target)
         if "rgb_fine" in inputs:

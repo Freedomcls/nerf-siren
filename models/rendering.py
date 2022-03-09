@@ -323,8 +323,10 @@ def render_rays_3d(models,
         #  sum N_samples rgb results
 
         depth_final = torch.sum(weights*z_vals, -1) # (N_rays)
-        cls_final = torch.sum(weights.unsqueeze(-1)*rgbs, -2) # (N_rays, CLS)
+        cls_final = torch.sum(weights.unsqueeze(-1)*clss, -2) # (N_rays, CLS)
         # * same as rgb render, as mentioned before here is image-dependent 
+        if DEBUG:
+            print(cls_final.shape, "cls shape")
 
         if white_back:
             rgb_final = rgb_final + 1-weights_sum.unsqueeze(-1)
