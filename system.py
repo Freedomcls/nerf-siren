@@ -153,7 +153,7 @@ class NeRF3DSystem(NeRFSystem):
     def decode_batch(self, batch):
         rays = batch['rays'] # (B, 8)
         rgbs = batch['rgbs'] # (B, 3)
-        parse = batch["parse"] # ! PLZ check ! assume to be (B, 1)
+        parse = batch["parse"] # ! PLZ check ! assume to be (B, CLS)
         return rays, rgbs, parse
 
     def training_step(self, batch, batch_nb):

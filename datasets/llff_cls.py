@@ -12,6 +12,39 @@ import cv2
 
 DEBUG = os.environ.get("DEBUG", False)
 
+def merge_cls():
+    # cls_map: parse results
+    atts =   ['skin', 'l_brow', 'r_brow', 'l_eye', 'r_eye', 'eye_g', 'l_ear', 'r_ear', 'ear_r',
+            'nose', 'mouth', 'u_lip', 'l_lip', 'neck', 'neck_l', 'cloth', 'hair', 'hat']
+
+    new_atts = ['skin', 'brow', 'brow', 'eye', 'eye', 'eye_g', 'ear', 'ear', 'ignore', 
+            'nose', 'mouth', 'lip', 'lip',  'neck',  'ignore', 'ignore', 'hair', 'ignore']
+    # 19-> 11
+    new_map = {
+        'skin':1, 
+        'brow':2, 
+        'eye':3, 
+        'eye_g':4, 
+        'ear':5,   
+        'nose':6, 
+        'mouth':7, 
+        'lip':8, 
+        'neck':9,  
+        'hair':10, 
+        'ignore': -1,
+    }
+    ids_map = {}
+    for i, (att, new_att) in enumerate(zip(atts, new_atts), 1):
+        ids_map[i] = new_map[new_att]
+    return ids_map
+
+def convert_pred(pred):
+    ids_map = merge_cls()
+    for ids in ids_map:
+        pred[pred==int(ids)] = int(ids_map[ids])
+    return pred
+
+    
 class LLFFClsDataset(Dataset):
     def __init__(self, root_dir, split='train', img_wh=(1920, 1080), spheric_poses=False, val_num=1):
         """
@@ -103,6 +136,8 @@ class LLFFClsDataset(Dataset):
                 https://gis.stackexchange.com/questions/10931/what-is-lanczos-resampling-useful-for-in-a-spatial-context
                 """
                 parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]), interpolation=cv2.INTER_LANCZOS4)
+                parse_res = convert_pred(parse_res)
+
                 img = self.transform(img) # (3, h, w)
                 parse_res = self.transform(parse_res)
                 img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB

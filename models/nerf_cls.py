@@ -7,7 +7,7 @@ DEBUG = os.environ.get("DEBUG", False)
 
 class NeRF_3D(nn.Module):
     def __init__(self,
-                 D=8, W=256, CLS=19,
+                 D=8, W=256, CLS=11,
                  in_channels_xyz=63, in_channels_dir=27, 
                  skips=[4]):
         """
@@ -91,8 +91,6 @@ class NeRF_3D(nn.Module):
         dir_encoding = self.dir_encoding(dir_encoding_input)
         rgb = self.rgb(dir_encoding) # N_sample x 3 for each rays
         clss = self.parse(dir_encoding)  #  N_sample x cls for each rays
-        if DEBUG:
-            print(clss)
         out = torch.cat([rgb, sigma, clss], -1)
         
         return out

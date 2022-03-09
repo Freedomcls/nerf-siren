@@ -287,7 +287,9 @@ def render_rays_3d(models,
             sigmas = out.view(N_rays, N_samples_)
         else:
             # cls + 4 = 23
-            rgbsigmacls = out.view(N_rays, N_samples_, 23) # ! need check shape
+            rgbsigmacls = out.reshape(N_rays, N_samples_, -1) # ! need check shape
+            if DEBUG:
+                print(rgbsigmacls.shape)
             rgbs = rgbsigmacls[..., :3] # (N_rays, N_samples_, 3)
             sigmas = rgbsigmacls[..., 3] # (N_rays, N_samples_)
             """
@@ -325,8 +327,6 @@ def render_rays_3d(models,
         depth_final = torch.sum(weights*z_vals, -1) # (N_rays)
         cls_final = torch.sum(weights.unsqueeze(-1)*clss, -2) # (N_rays, CLS)
         # * same as rgb render, as mentioned before here is image-dependent 
-        if DEBUG:
-            print(cls_final.shape, "cls shape")
 
         if white_back:
             rgb_final = rgb_final + 1-weights_sum.unsqueeze(-1)

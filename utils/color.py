@@ -37,7 +37,8 @@ def color_cls(img, pred_map, savedir, prefix=""):
         os.makedirs(savedir)
 
     cv2.imwrite(os.path.join(savedir, prefix+"pred_map.png"), vis_pred)
-    cv2.imwrite(os.path.join(savedir, prefix+"img_color.jpg"), vis_im, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+    cv2.imwrite(os.path.join(savedir, prefix+"img_color.png"), vis_im)
+    cv2.imwrite(os.path.join(savedir, prefix+"img_raw.png"), img)
 
 if __name__ == "__main__":
     # test example

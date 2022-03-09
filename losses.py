@@ -24,7 +24,7 @@ class MSECELoss(nn.Module):
     def __init__(self):
         super(MSECELoss, self).__init__()
         self.mse = nn.MSELoss(reduction='mean')
-        self.ce = nn.CrossEntropyLoss(reduction="mean")
+        self.ce = nn.CrossEntropyLoss(reduction="mean", ignore_index=-1)
     
     def forward(self, inputs, mse_target, ce_target, weight=0.9):
         loss = {}
@@ -34,7 +34,7 @@ class MSECELoss(nn.Module):
         ce_target = ce_target.to(torch.long).squeeze()
 
         if DEBUG:
-            print(inputs['cls_coarse'].shape, ce_target.shape)
+            print(inputs['cls_coarse'].shape, ce_target.shape, "loss")
 
         ce_loss = self.ce(inputs['cls_coarse'], ce_target)
         if "rgb_fine" in inputs:
