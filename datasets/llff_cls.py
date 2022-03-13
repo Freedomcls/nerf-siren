@@ -38,13 +38,14 @@ def merge_cls():
         ids_map[i] = new_map[new_att]
     return ids_map
 
-def convert_pred(pred):
+def convert_pred(pred, scale=10):
     ids_map = merge_cls()
     for ids in ids_map:
-        pred[pred==int(ids)] = int(ids_map[ids])
+        pred[pred==int(ids)*scale] = int(ids_map[ids])
+    # print(pred[pred!=0])
     return pred
 
-    
+
 class LLFFClsDataset(Dataset):
     def __init__(self, root_dir, split='train', img_wh=(1920, 1080), spheric_poses=False, val_num=1):
         """
@@ -52,6 +53,9 @@ class LLFFClsDataset(Dataset):
                        default: False (forward-facing)
         val_num: number of val images (used for multigpu training, validate same image for all gpus)
         """
+        self.edited_ids = [25, 50, 75, 100, 125, 175, 200, 225, 250, 275, \
+            300, 325, 350, 375, 400, 1250, 1275, 1300, 1325, 1350, 1375, 1400, \
+            1425, 1450]
         self.root_dir = root_dir
         self.split = split
         self.img_wh = img_wh
@@ -66,9 +70,11 @@ class LLFFClsDataset(Dataset):
         poses_bounds = np.load(os.path.join(self.root_dir,
                                             'poses_bounds.npy')) # (N_images, 17)
         self.image_paths = sorted(glob.glob(os.path.join(self.root_dir, 'images/*')))
+        # self.image_paths = sorted(glob.glob(os.path.join(self.root_dir, 'edit_imgs/*')))
                         # load full resolution image then resize
 
-        self.parse_path = sorted(glob.glob(os.path.join(self.root_dir, 'raw_parse/*.png'))) 
+        self.raw_parse_path = sorted(glob.glob(os.path.join(self.root_dir, 'raw_parse/*.png'))) 
+        # self.parse_path = sorted(glob.glob(os.path.join(self.root_dir, 'edit_parse/*.png'))) 
         # * use raw parse results, need to replace with 
 
 
@@ -114,9 +120,17 @@ class LLFFClsDataset(Dataset):
             self.all_rgbs = []
             self.all_parse = [] # face-parsing 
 
-            for i, (image_path, parse_path) in enumerate(zip(self.image_paths, self.parse_path)):
+            # for i, (image_path, parse_path) in enumerate(zip(self.image_paths, self.parse_path)):
+            for i, image_path in enumerate(self.image_paths):
                 if i == val_idx: # exclude the val image
                     continue
+                ids = int(image_path.split("/")[-1].split(".")[0].split("_")[-1])
+                dir_name = image_path.split("/")[-1].split(".")[0]
+                # print(ids, dir_name)
+                if ids not in self.edited_ids:
+                    continue 
+                parse_path = os.path.join(self.root_dir, f'edit_parse/{dir_name}.png')
+                assert os.path.exists(parse_path)
                 c2w = torch.FloatTensor(self.poses[i])
 
                 img = Image.open(image_path).convert('RGB')
@@ -171,7 +185,8 @@ class LLFFClsDataset(Dataset):
             print('val image is', self.image_paths[val_idx])
             self.c2w_val = self.poses[val_idx]
             self.image_path_val = self.image_paths[val_idx]
-            self.parse_path_val = self.parse_path[val_idx]
+            # use raw results as val bcz may not exists
+            self.parse_path_val = self.raw_parse_path[val_idx]
 
         else: # for testing, create a parametric rendering path
             if self.split.endswith('train'): # test on training set

@@ -47,11 +47,21 @@ class NeRF_3D(nn.Module):
         self.rgb = nn.Sequential(
                         nn.Linear(W//2, 3),
                         nn.Sigmoid())
-
+        
+        # large version seems better
+        _hidden = 2*W
         self.parse = nn.Sequential(
-                        nn.Linear(W//2, CLS),
-                        nn.Sigmoid())
+                        nn.Linear(W, _hidden),
+                        nn.Linear(_hidden, CLS),
+                        nn.ReLU())
 
+        # self.parse = nn.Sequential(
+        #                 nn.Linear(W, CLS),
+        #                 # replace with relu
+        #                 nn.ReLU())
+
+        # print(self.parse)
+        
     def forward(self, x, sigma_only=False):
         """
         Encodes input (xyz+dir) to rgb+sigma (not ready to render yet).
@@ -86,11 +96,12 @@ class NeRF_3D(nn.Module):
             return sigma
 
         xyz_encoding_final = self.xyz_encoding_final(xyz_)
+        clss = self.parse(xyz_encoding_final) 
+        #  N_sample x cls for each rays
+        #  get results before rgb
 
         dir_encoding_input = torch.cat([xyz_encoding_final, input_dir], -1)
         dir_encoding = self.dir_encoding(dir_encoding_input)
         rgb = self.rgb(dir_encoding) # N_sample x 3 for each rays
-        clss = self.parse(dir_encoding)  #  N_sample x cls for each rays
         out = torch.cat([rgb, sigma, clss], -1)
-        
         return out

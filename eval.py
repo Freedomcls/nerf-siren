@@ -14,7 +14,7 @@ import metrics
 
 from datasets import dataset_dict
 from datasets.depth_utils import *
-import cv2
+# import cv2
 torch.backends.cudnn.benchmark = True
 DEBUG = os.environ.get("DEBUG", False)
 
@@ -135,10 +135,12 @@ if __name__ == "__main__":
             cls_num = 11
             cls_pred = results["cls_fine"].view(h, w, cls_num).cpu().numpy()
             cls_pred = np.max(cls_pred, axis=-1) # choose max pred
-            cv2.imwirte(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred)
+            # cv2.imwirte(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred)
+            imageio.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred)
             if DEBUG:
                 print(cls_pred[cls_pred!=0])
-                color_cls((img_pred*255).astype(np.uint8), cls_pred, f"./results/{args.dataset_name}/{args.scene_name}_cls_map")
+                color_cls((img_pred*255).astype(np.uint8), cls_pred, \
+                    f"./results/{args.dataset_name}/{args.scene_name}_cls_map", prefix=str(i))
                 
 
         if args.save_depth:
