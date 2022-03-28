@@ -27,6 +27,7 @@ def color_cls(img, pred_map, savedir, prefix=""):
     vis_pred = cv2.resize(vis_pred, None, fx=1, fy=1, interpolation=cv2.INTER_NEAREST)
     vis_pred_color = np.zeros((vis_pred.shape[0], vis_pred.shape[1], 3)) + 255
     num_cls = np.max(vis_pred) 
+    print(num_cls)
     for i in range(1, num_cls):
         index = np.where(vis_pred==i)
         vis_pred_color[index[0], index[1], :] = part_colors[i]
@@ -38,7 +39,8 @@ def color_cls(img, pred_map, savedir, prefix=""):
 
     cv2.imwrite(os.path.join(savedir, prefix+"pred_map.png"), vis_pred)
     cv2.imwrite(os.path.join(savedir, prefix+"img_color.png"), vis_im)
-    cv2.imwrite(os.path.join(savedir, prefix+"img_raw.png"), img)
+    # cv2.imwrite(os.path.join(savedir, prefix+"img_color.png"), cv2.cvtColor(vis_im, cv2.COLOR_RGB2BGR))
+    cv2.imwrite(os.path.join(savedir, prefix+"img_raw.png"),  cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
 
 if __name__ == "__main__":
     # test example

@@ -29,7 +29,7 @@ def get_opts():
                         help='std dev of noise added to regularize sigma')
         
     parser.add_argument('--loss_type', type=str, default='mse',
-                        choices=['mse', "msece"],
+                        choices=['mse', "msece", "msemse"],
                         help='loss to use')
 
     parser.add_argument('--batch_size', type=int, default=1024,

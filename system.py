@@ -160,6 +160,8 @@ class NeRF3DSystem(NeRFSystem):
         log = {'lr': get_learning_rate(self.optimizer)}
         rays, rgbs, parse = self.decode_batch(batch)
         results = self(rays)
+        print(rgbs.shape, parse.shape, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1")
+        exit()
         loss = self.loss(results, rgbs, parse)
         log['train/total_loss'] = loss["sum"]
         log['train/mse_loss'] = loss["mse"]
@@ -207,6 +209,7 @@ class NeRF3DSystem(NeRFSystem):
         rgbs = rgbs.squeeze() # (H*W, 3)
         parse = parse.squeeze() # (H*W, CLS)
         results = self(rays)
+        print(rgbs.shape, parse.shape)
         loss = self.loss(results, rgbs, parse)
         log = {'val_loss': loss["sum"]}
         typ = 'fine' if 'rgb_fine' in results else 'coarse'

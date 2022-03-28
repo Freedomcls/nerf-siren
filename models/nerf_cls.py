@@ -7,7 +7,7 @@ DEBUG = os.environ.get("DEBUG", False)
 
 class NeRF_3D(nn.Module):
     def __init__(self,
-                 D=8, W=256, CLS=11,
+                 D=8, W=256, CLS=3,
                  in_channels_xyz=63, in_channels_dir=27, 
                  skips=[4]):
         """
@@ -53,7 +53,8 @@ class NeRF_3D(nn.Module):
         self.parse = nn.Sequential(
                         nn.Linear(W, _hidden),
                         nn.Linear(_hidden, CLS),
-                        nn.ReLU())
+                        # nn.ReLU())
+                        nn.Sigmoid())
 
         # self.parse = nn.Sequential(
         #                 nn.Linear(W, CLS),

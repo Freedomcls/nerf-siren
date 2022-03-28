@@ -296,6 +296,7 @@ def render_rays_3d(models,
             NOTE: The class of xyz should be N_rays due to it is image-independent
             """
             clss = rgbsigmacls[..., 4:] # (N_rays, N_samples_, CLS)
+            print(clss.shape, "???????????")
 
         # Convert these values using volume rendering (Section 4)
         deltas = z_vals[:, 1:] - z_vals[:, :-1] # (N_rays, N_samples_-1)
@@ -325,8 +326,8 @@ def render_rays_3d(models,
 
         depth_final = torch.sum(weights*z_vals, -1) # (N_rays)
         cls_final = torch.sum(weights.unsqueeze(-1)*clss, -2) # (N_rays, CLS)
-        # * same as rgb render, as mentioned before here is image-dependent 
-
+        # * same as rgb render, as mentioned before here is view-dependent 
+        # print(torch.argmax(cls_final, dim=-1).min(), torch.argmax(cls_final, dim=-1).max())
         if white_back:
             rgb_final = rgb_final + 1-weights_sum.unsqueeze(-1)
 
@@ -341,6 +342,7 @@ def render_rays_3d(models,
     N_rays = rays.shape[0]
     rays_o, rays_d = rays[:, 0:3], rays[:, 3:6] # both (N_rays, 3)
     near, far = rays[:, 6:7], rays[:, 7:8] # both (N_rays, 1)
+    # near far will effect sampling 
 
     # Embed direction
     dir_embedded = embedding_dir(rays_d) # (N_rays, embed_dir_channels)
@@ -397,7 +399,6 @@ def render_rays_3d(models,
         rgb_fine, depth_fine, cls_fine, weights_fine = \
             inference(model_fine, embedding_xyz, xyz_fine_sampled, rays_d,
                       dir_embedded, z_vals, weights_only=False)
-
         result['rgb_fine'] = rgb_fine
         result['depth_fine'] = depth_fine
         result['cls_fine'] = cls_fine

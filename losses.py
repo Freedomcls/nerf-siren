@@ -37,15 +37,19 @@ class MSECELoss(nn.Module):
             print(inputs['cls_coarse'].shape, ce_target.shape, "loss")
             pred_res = torch.max(inputs['cls_coarse'], axis=-1)
             print(pred_res , ce_target)
-
+            print(obj_mask.sum())
         # ce_loss = self.ce(inputs['cls_coarse'][obj_mask], ce_target[obj_mask])
+        # 加不加mask, cls_fine的结果基本都是 0 
         ce_loss = self.ce(inputs['cls_coarse'], ce_target)
 
         if "rgb_fine" in inputs:
             mse_loss += self.mse(inputs['rgb_fine'], mse_target)
             ce_loss += self.ce(inputs['cls_fine'], ce_target)
+            print(list(set(torch.argmax(inputs['cls_fine'], dim=-1).detach().cpu().numpy().tolist())), 
+                "loss")
+            # ce_loss += self.ce(inputs['cls_fine'][obj_mask], ce_target[obj_mask])
 
-        mse_loss *= mse_wg 
+        mse_loss *= 0 
         ce_loss *= ce_wg
 
         loss["sum"] = mse_loss + ce_loss
@@ -53,4 +57,31 @@ class MSECELoss(nn.Module):
         loss["ce"] = ce_loss
         return loss
 
-loss_dict = {'mse': MSELoss, "msece": MSECELoss}
+
+class MSEMSELoss(nn.Module):
+    # need update render and nerf model
+    def __init__(self):
+        super(MSEMSELoss, self).__init__()
+        self.loss = nn.MSELoss(reduction='mean')
+
+    def forward(self, inputs, rgb_target, cls_target, weight=0.6):
+        print(inputs['cls_coarse'].shape, cls_target.shape)
+
+        rgb_loss = self.loss(inputs['rgb_coarse'], rgb_target)
+        cls_loss = self.loss(inputs['cls_coarse'], cls_target)
+
+        if 'rgb_fine' in inputs:
+            rgb_loss += self.loss(inputs['rgb_fine'], rgb_target)
+            cls_loss += self.loss(inputs['cls_fine'], cls_targets)
+        
+        loss["rgb"] = rgb_loss
+        loss["cls"] = cls_loss
+        loss["sum"] = rgb_loss + cls_loss
+
+        return loss
+
+
+
+loss_dict = {'mse': MSELoss, "msece": MSECELoss, "msemse": MSEMSELoss}
+
+
