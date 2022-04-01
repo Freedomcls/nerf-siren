@@ -124,6 +124,7 @@ def render_rays(models,
         # Perform model inference to get rgb and raw sigma
         B = xyz_.shape[0]
         out_chunks = []
+        print(xyz_.shape, chunk)
         for i in range(0, B, chunk):
             # Embed positions by chunk
             xyz_embedded = embedding_xyz(xyz_[i:i+chunk])
@@ -132,7 +133,10 @@ def render_rays(models,
                                              dir_embedded[i:i+chunk]], 1)
             else:
                 xyzdir_embedded = xyz_embedded
+
+            # get outputs chunk by chunk 
             out_chunks += [model(xyzdir_embedded, sigma_only=weights_only)]
+            
 
         out = torch.cat(out_chunks, 0)
         if weights_only:
@@ -247,6 +251,7 @@ def render_rays(models,
 
 
 def render_rays_3d(models,
+                  points,
                   embeddings,
                   rays,
                   N_samples=64,
@@ -261,7 +266,7 @@ def render_rays_3d(models,
     """
     render cls results.
     """
-    def inference(model, embedding_xyz, xyz_, dir_, dir_embedded, z_vals, weights_only=False):
+    def inference(model, points, embedding_xyz, xyz_, dir_, dir_embedded, z_vals, weights_only=False):
         N_samples_ = xyz_.shape[1]
         # Embed directions
         xyz_ = xyz_.view(-1, 3) # (N_rays*N_samples_, 3)
@@ -272,9 +277,10 @@ def render_rays_3d(models,
         # Perform model inference to get rgb and raw sigma
         B = xyz_.shape[0]
         out_chunks = []
+        # print(B, chunk, len(range(0, B, chunk)))
         for i in range(0, B, chunk):
             # Embed positions by chunk
-            xyz_embedded = embedding_xyz(xyz_[i:i+chunk])
+            xyz_embedded = embedding_xyz(xyz_[i:i+chunk]) # 3 channel encoder to 10
             if not weights_only:
                 xyzdir_embedded = torch.cat([xyz_embedded,
                                              dir_embedded[i:i+chunk]], 1)
@@ -287,17 +293,16 @@ def render_rays_3d(models,
             sigmas = out.view(N_rays, N_samples_)
         else:
             # cls + 4 = 23
-            rgbsigmacls = out.reshape(N_rays, N_samples_, -1) # ! need check shape
-            if DEBUG:
-                print(rgbsigmacls.shape)
-            rgbs = rgbsigmacls[..., :3] # (N_rays, N_samples_, 3)
-            sigmas = rgbsigmacls[..., 3] # (N_rays, N_samples_)
+            rgbsigma = out.reshape(N_rays, N_samples_, -1) # ! need check shape
+            rgbs = rgbsigma[..., :3] # (N_rays, N_samples_, 3)
+            sigmas = rgbsigma[..., 3] # (N_rays, N_samples_)
             """
             NOTE: The class of xyz should be N_rays due to it is image-independent
             """
-            clss = rgbsigmacls[..., 4:] # (N_rays, N_samples_, CLS)
-            print(clss.shape, "???????????")
+            if DEBUG:
+                print(rgbsigma.shape)
 
+        
         # Convert these values using volume rendering (Section 4)
         deltas = z_vals[:, 1:] - z_vals[:, :-1] # (N_rays, N_samples_-1)
         delta_inf = 1e10 * torch.ones_like(deltas[:, :1]) # (N_rays, 1) the last delta is infinity
@@ -317,6 +322,24 @@ def render_rays_3d(models,
             alphas * torch.cumprod(alphas_shifted, -1)[:, :-1] # (N_rays, N_samples_)
         weights_sum = weights.sum(1) # (N_rays), the accumulated opacity along the rays
                                      # equals "1 - (1-a1)(1-a2)...(1-an)" mathematically
+
+        # use weight to sample xyz
+        _cls_num = 9
+        N_sample = weights.shape[1]
+        clspoints = torch.zeros((N_rays, N_sample, _cls_num)).cuda() # all is background
+        _thresh = 0.2 # * increase as iter ?
+        sample_weights = weights
+        sample_mask = sample_weights>_thresh
+        sample_points = xyz_[sample_mask.reshape(-1)] # differentiable ?
+        sample_points = sample_points.transpose(1, 0)
+        sample_points = torch.unsqueeze(sample_points, 0)
+        points_preds, _, _ = points(sample_points)
+        clspoints[sample_mask] = points_preds[0]
+        cls_final = torch.sum(weights.unsqueeze(-1)*clspoints, -2)
+
+        # print(xyz_.shape, sample_mask.shape, 
+        #     cls_final.shape, points_preds.shape, clspoints.shape,  "???")
+        
         if weights_only:
             return weights
 
@@ -325,9 +348,6 @@ def render_rays_3d(models,
         #  sum N_samples rgb results
 
         depth_final = torch.sum(weights*z_vals, -1) # (N_rays)
-        cls_final = torch.sum(weights.unsqueeze(-1)*clss, -2) # (N_rays, CLS)
-        # * same as rgb render, as mentioned before here is view-dependent 
-        # print(torch.argmax(cls_final, dim=-1).min(), torch.argmax(cls_final, dim=-1).max())
         if white_back:
             rgb_final = rgb_final + 1-weights_sum.unsqueeze(-1)
 
@@ -370,12 +390,12 @@ def render_rays_3d(models,
 
     if test_time:
         weights_coarse = \
-            inference(model_coarse, embedding_xyz, xyz_coarse_sampled, rays_d,
+            inference(model_coarse, points, embedding_xyz, xyz_coarse_sampled, rays_d,
                       dir_embedded, z_vals, weights_only=True)
         result = {'opacity_coarse': weights_coarse.sum(1)}
     else:
         rgb_coarse, depth_coarse, cls_coarse, weights_coarse = \
-            inference(model_coarse, embedding_xyz, xyz_coarse_sampled, rays_d,
+            inference(model_coarse, points, embedding_xyz, xyz_coarse_sampled, rays_d,
                       dir_embedded, z_vals, weights_only=False)
         result = {'rgb_coarse': rgb_coarse,
                   'depth_coarse': depth_coarse,
@@ -397,7 +417,7 @@ def render_rays_3d(models,
 
         model_fine = models[1]
         rgb_fine, depth_fine, cls_fine, weights_fine = \
-            inference(model_fine, embedding_xyz, xyz_fine_sampled, rays_d,
+            inference(model_fine, points, embedding_xyz, xyz_fine_sampled, rays_d,
                       dir_embedded, z_vals, weights_only=False)
         result['rgb_fine'] = rgb_fine
         result['depth_fine'] = depth_fine

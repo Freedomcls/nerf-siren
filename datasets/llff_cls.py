@@ -73,7 +73,7 @@ class LLFFClsDataset(Dataset):
         # self.image_paths = sorted(glob.glob(os.path.join(self.root_dir, 'edit_imgs/*')))
                         # load full resolution image then resize
 
-        self.raw_parse_path = sorted(glob.glob(os.path.join(self.root_dir, 'raw_parse/*.jpg'))) 
+        self.raw_parse_path = sorted(glob.glob(os.path.join(self.root_dir, 'raw_parse/*.png'))) 
         # self.parse_path = sorted(glob.glob(os.path.join(self.root_dir, 'edit_parse/*.png'))) 
         # * use raw parse results, need to replace with 
 
@@ -129,43 +129,40 @@ class LLFFClsDataset(Dataset):
                 # print(ids, dir_name)
                 if ids not in self.edited_ids:
                     continue 
-                # parse_path = os.path.join(self.root_dir, f'edit_parse/{dir_name}.png')
+                parse_path = os.path.join(self.root_dir, f'edit_parse/{dir_name}.png')
+                # parse_path = os.path.join(self.root_dir, f'edit_parse/{dir_name}.jpg) # use rgb HxWx3
 
-                parse_path = os.path.join(self.root_dir, f'edit_parse/{dir_name}.jpg') # use rgb HxWx3
                 assert os.path.exists(parse_path)
                 c2w = torch.FloatTensor(self.poses[i])
 
                 img = Image.open(image_path).convert('RGB')
-                parse_res = Image.open(parse_path).convert('RGB')
-                # print(img.size, parse_res.size, "????")
+                # parse_res = Image.open(parse_path).convert('RGB')
 
-                # parse_res = cv2.imread(parse_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
-                # parse_res = parse_res.T #cv2 load inverse h w
+                parse_res = cv2.imread(parse_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
+                parse_res = parse_res.T #cv2 load inverse h w
                 
-                # assert list(parse_res.shape[:2]) == list(img.size[:2]),\
-                #     f"{parse_res.shape}!={img.size}"
-                assert list(parse_res.size[:2]) == list(img.size[:2]),\
-                    f"{parse_res.size}!={img.size}"
+                assert list(parse_res.shape[:2]) == list(img.size[:2]),\
+                    f"{parse_res.shape}!={img.size}"
                 
                 assert img.size[1]*self.img_wh[0] == img.size[0]*self.img_wh[1], \
                     f'''{image_path} has different aspect ratio than img_wh, 
                         please check your data!'''
 
                 img = img.resize(self.img_wh, Image.LANCZOS) 
-                parse_res = parse_res.resize(self.img_wh, Image.LANCZOS)
+                # parse_res = parse_res.resize(self.img_wh, Image.LANCZOS)
                 """
                 Check this to know LANZOS sampling:
                 https://gis.stackexchange.com/questions/10931/what-is-lanczos-resampling-useful-for-in-a-spatial-context
                 """
-                # parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]), interpolation=cv2.INTER_LANCZOS4)
-                # parse_res = convert_pred(parse_res)
+                parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]), interpolation=cv2.INTER_LANCZOS4)
+                parse_res = convert_pred(parse_res)
 
                 img = self.transform(img) # (3, h, w)
                 parse_res = self.transform(parse_res)
                 img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
-                # parse_res = parse_res.view(1, -1).permute(1, 0) # (h*w, 1) 
+                parse_res = parse_res.view(1, -1).permute(1, 0) # (h*w, 1) 
 
-                parse_res = parse_res.view(3, -1).permute(1, 0) # (h*w, 3) RGB 
+                # parse_res = parse_res.view(3, -1).permute(1, 0) # (h*w, 3) RGB 
 
                 self.all_rgbs += [img]
                 self.all_parse  += [parse_res]
@@ -259,16 +256,15 @@ class LLFFClsDataset(Dataset):
                 sample['rgbs'] = img
 
                 parse = cv2.imread(self.parse_path_val, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
-                print(parse.shape, "val1", self.parse_path_val)
                 parse = parse.T
                 parse = cv2.resize(parse, (self.img_wh[1], self.img_wh[0]), interpolation=cv2.INTER_LANCZOS4)
                 parse = self.transform(parse) # (1, h, w)
-                # parse = parse.view(1, -1).permute(1, 0) # (h*w, 1)
-                parse = parse.view(3, -1).permute(1, 0) # (h*w, 3)
+
+                parse = parse.view(1, -1).permute(1, 0) # (h*w, 1)
+                # parse = parse.view(3, -1).permute(1, 0) # (h*w, 3)
                 if DEBUG:
                     print(parse.shape, "val")
                 
                 sample["parse"] = parse
-                print("val", parse.shape, img.shape)
 
         return sample

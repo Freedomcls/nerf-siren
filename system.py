@@ -2,6 +2,7 @@
 from pytorch_lightning import LightningModule
 from models.nerf import Embedding, NeRF
 from models.nerf_cls import NeRF_3D
+from models.pointnets import PointNetDenseCls
 from models.rendering import render_rays, render_rays_3d
 # optimizer, scheduler, visualization
 from utils import *
@@ -143,29 +144,23 @@ class NeRF3DSystem(NeRFSystem):
         # self.embedding_xyz = Embedding(3, 10) # 10 is the default number
         # self.embedding_dir = Embedding(3, 4) # 4 is the default number
         # self.embeddings = [self.embedding_xyz, self.embedding_dir]
-
-        self.nerf_coarse = NeRF_3D()
-        self.models = [self.nerf_coarse]
-        if hparams.N_importance > 0:
-            self.nerf_fine = NeRF_3D()
-            self.models += [self.nerf_fine]
-
+        _cls = 9
+        self.points = PointNetDenseCls(k=_cls)
+        
     def decode_batch(self, batch):
         rays = batch['rays'] # (B, 8)
         rgbs = batch['rgbs'] # (B, 3)
-        parse = batch["parse"] # ! PLZ check ! assume to be (B, CLS)
+        parse = batch["parse"] 
         return rays, rgbs, parse
 
     def training_step(self, batch, batch_nb):
         log = {'lr': get_learning_rate(self.optimizer)}
         rays, rgbs, parse = self.decode_batch(batch)
         results = self(rays)
-        print(rgbs.shape, parse.shape, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1")
-        exit()
         loss = self.loss(results, rgbs, parse)
         log['train/total_loss'] = loss["sum"]
-        log['train/mse_loss'] = loss["mse"]
-        log['train/ce_loss'] = loss["ce"]
+        log['train/rgb_loss'] = loss["rgb"]
+        log['train/cls_loss'] = loss["cls"]
 
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
 
@@ -186,6 +181,7 @@ class NeRF3DSystem(NeRFSystem):
         for i in range(0, B, self.hparams.chunk):
             rendered_ray_chunks = \
                 render_rays_3d(self.models,
+                            self.points,
                             self.embeddings,
                             rays[i:i+self.hparams.chunk],
                             self.hparams.N_samples,
@@ -225,6 +221,6 @@ class NeRF3DSystem(NeRFSystem):
                                                stack, self.global_step)
 
         log['val_psnr'] = psnr(results[f'rgb_{typ}'], rgbs)
-        log['val_mse_loss'] = loss["mse"]
-        log['val_ce_loss'] = loss["ce"]
+        log['val_cls_loss'] = loss["cls"]
+        log['val_rgb_loss'] = loss["rgb"]
         return log

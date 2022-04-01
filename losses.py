@@ -2,6 +2,8 @@ import torch
 from torch import nn
 import os
 import numpy as np
+import torch.nn.functional as F
+
 DEBUG = os.environ.get("DEBUG", False)
 
 class MSELoss(nn.Module):
@@ -49,39 +51,44 @@ class MSECELoss(nn.Module):
                 "loss")
             # ce_loss += self.ce(inputs['cls_fine'][obj_mask], ce_target[obj_mask])
 
-        mse_loss *= 0 
+        mse_loss *= mse_wg
         ce_loss *= ce_wg
 
         loss["sum"] = mse_loss + ce_loss
-        loss["mse"] = mse_loss
-        loss["ce"] = ce_loss
+        loss["rgb"] = mse_loss
+        loss["cls"] = ce_loss
         return loss
 
 
-class MSEMSELoss(nn.Module):
+class MSENLLLoss(nn.Module):
     # need update render and nerf model
     def __init__(self):
-        super(MSEMSELoss, self).__init__()
+        super(MSENLLLoss, self).__init__()
         self.loss = nn.MSELoss(reduction='mean')
 
     def forward(self, inputs, rgb_target, cls_target, weight=0.6):
-        print(inputs['cls_coarse'].shape, cls_target.shape)
+        # print(inputs['cls_coarse'].shape, cls_target.shape)
+        loss = {}
+        cls_target = torch.squeeze(cls_target)
+        cls_target = cls_target.to(torch.long)
+        # obj_mask = (cls_target != 0 ).to(dtype=torch.long, device=cls_target.device)
 
+        cls_coarse = inputs['cls_coarse']
+        # ingore non-sample points
+        cls_loss_mask_coarse = cls_coarse != -1
+        
         rgb_loss = self.loss(inputs['rgb_coarse'], rgb_target)
-        cls_loss = self.loss(inputs['cls_coarse'], cls_target)
+        print(cls_coarse.shape, cls_target.shape,  torch.max(cls_target, dim=-1), "***")
+        cls_loss = F.nll_loss(cls_coarse, cls_target)
 
         if 'rgb_fine' in inputs:
             rgb_loss += self.loss(inputs['rgb_fine'], rgb_target)
-            cls_loss += self.loss(inputs['cls_fine'], cls_targets)
+            cls_loss += F.nll_loss(inputs['cls_fine'], cls_target)
         
-        loss["rgb"] = rgb_loss
-        loss["cls"] = cls_loss
-        loss["sum"] = rgb_loss + cls_loss
+        loss["rgb"] = rgb_loss * weight
+        loss["cls"] = cls_loss * (1-weight)
+        loss["sum"] = loss["rgb"] + loss["cls"]
 
         return loss
 
-
-
-loss_dict = {'mse': MSELoss, "msece": MSECELoss, "msemse": MSEMSELoss}
-
-
+loss_dict = {'mse': MSELoss, "msece": MSECELoss, "msenll": MSENLLLoss}
