@@ -287,8 +287,9 @@ def render_rays_3d(models,
             else:
                 xyzdir_embedded = xyz_embedded
             out_chunks += [model(xyzdir_embedded, sigma_only=weights_only)]
-
+        
         out = torch.cat(out_chunks, 0)
+        print(out.shape)
         if weights_only:
             sigmas = out.view(N_rays, N_samples_)
         else:
@@ -300,7 +301,7 @@ def render_rays_3d(models,
             NOTE: The class of xyz should be N_rays due to it is image-independent
             """
             if DEBUG:
-                print(rgbsigma.shape)
+                print(rgbsigma.shape, "?")
 
         
         # Convert these values using volume rendering (Section 4)
@@ -327,13 +328,18 @@ def render_rays_3d(models,
         _cls_num = 9
         N_sample = weights.shape[1]
         clspoints = torch.zeros((N_rays, N_sample, _cls_num)).cuda() # all is background
-        _thresh = 0.2 # * increase as iter ?
+        
+        _thresh = 0.05 # * increase as iter ?
+        # _thresh = 0.2 # * increase as iter ?
         sample_weights = weights
         sample_mask = sample_weights>_thresh
+        # print(sample_mask.sum(), weights)
         sample_points = xyz_[sample_mask.reshape(-1)] # differentiable ?
         sample_points = sample_points.transpose(1, 0)
         sample_points = torch.unsqueeze(sample_points, 0)
+        # print(sample_points.shape, xyz_.shape)
         points_preds, _, _ = points(sample_points)
+        print(points_preds)
         clspoints[sample_mask] = points_preds[0]
         cls_final = torch.sum(weights.unsqueeze(-1)*clspoints, -2)
 

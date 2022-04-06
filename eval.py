@@ -9,6 +9,7 @@ from argparse import ArgumentParser
 from models.rendering import render_rays, render_rays_3d
 from models.nerf import *
 from models.nerf_cls import NeRF_3D
+from models.pointnets import PointNetDenseCls
 from utils import load_ckpt, color_cls
 import metrics
 
@@ -16,7 +17,7 @@ from datasets import dataset_dict
 from datasets.depth_utils import *
 # import cv2
 torch.backends.cudnn.benchmark = True
-DEBUG = os.environ.get("DEBUG", False)
+DEBUG = eval(os.environ.get("DEBUG", "False"))
 
 def get_opts():
     parser = ArgumentParser()
@@ -60,7 +61,7 @@ def get_opts():
 
 
 @torch.no_grad()
-def batched_inference(models, embeddings,
+def batched_inference(models, points, embeddings,
                       rays, N_samples, N_importance, use_disp,
                       chunk,
                       white_back,
@@ -73,6 +74,7 @@ def batched_inference(models, embeddings,
     for i in range(0, B, chunk):
         rendered_ray_chunks = \
             render_func(models,
+                        points,
                         embeddings,
                         rays[i:i+chunk],
                         N_samples,
@@ -95,6 +97,7 @@ def batched_inference(models, embeddings,
 if __name__ == "__main__":
     args = get_opts()
     w, h = args.img_wh
+    _cls = 9
 
     kwargs = {'root_dir': args.root_dir,
               'split': args.split,
@@ -105,12 +108,15 @@ if __name__ == "__main__":
 
     embedding_xyz = Embedding(3, 10)
     embedding_dir = Embedding(3, 4)
-    nerf_coarse = NeRF_3D() if args.d3 else NeRF()
-    nerf_fine = NeRF_3D() if args.d3 else NeRF()
+    nerf_coarse = NeRF()
+    nerf_fine = NeRF()
+    points = PointNetDenseCls(k=_cls)
+
     load_ckpt(nerf_coarse, args.ckpt_path, model_name='nerf_coarse')
     load_ckpt(nerf_fine, args.ckpt_path, model_name='nerf_fine')
     nerf_coarse.cuda().eval()
     nerf_fine.cuda().eval()
+    points.cuda().eval()
 
     models = [nerf_coarse, nerf_fine]
     embeddings = [embedding_xyz, embedding_dir]
@@ -123,7 +129,7 @@ if __name__ == "__main__":
     for i in tqdm(range(len(dataset))):
         sample = dataset[i]
         rays = sample['rays'].cuda()
-        results = batched_inference(models, embeddings, rays,
+        results = batched_inference(models, points, embeddings, rays,
                                     args.N_samples, args.N_importance, args.use_disp,
                                     args.chunk,
                                     dataset.white_back,
@@ -133,21 +139,23 @@ if __name__ == "__main__":
         # add 3d cls
 
         if args.d3:
-            cls_num = 11
+            cls_num = 9
             cls_pred = results["cls_fine"].view(h, w, cls_num).cpu().numpy()
-            print(cls_pred)
+            print(cls_pred.shape)
             cls_pred = np.argmax(cls_pred, axis=-1)
+            print(cls_pred.shape)
 
             # cls_pred = np.max(cls_pred, axis=-1) # choose max pred
 
-            print(cls_pred.shape)
+            print(cls_pred, "??????/\n")
 
             # cv2.imwirte(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred)
             imageio.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred)
             if DEBUG:
                 print(cls_pred[cls_pred!=0])
-                color_cls((img_pred*255).astype(np.uint8), cls_pred, \
-                    f"./results/{args.dataset_name}/{args.scene_name}_cls_map", prefix=str(i))
+                
+            color_cls((img_pred*255).astype(np.uint8), cls_pred, \
+                f"./results/{args.dataset_name}/{args.scene_name}_cls_map", prefix=str(i))
                 
 
         if args.save_depth:

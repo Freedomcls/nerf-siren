@@ -30,14 +30,16 @@ def color_cls(img, pred_map, savedir, prefix=""):
     print(num_cls)
     for i in range(1, num_cls):
         index = np.where(vis_pred==i)
+
         vis_pred_color[index[0], index[1], :] = part_colors[i]
+        
     vis_pred_color = vis_pred_color.astype(np.uint8)
     vis_im = cv2.addWeighted(cv2.cvtColor(vis_im, cv2.COLOR_RGB2BGR), 0.4, vis_pred_color, 0.6, 0)
     
     if not os.path.exists(savedir):
         os.makedirs(savedir)
 
-    cv2.imwrite(os.path.join(savedir, prefix+"pred_map.png"), vis_pred)
+    cv2.imwrite(os.path.join(savedir, prefix+"pred_map.png"), vis_pred_color)
     cv2.imwrite(os.path.join(savedir, prefix+"img_color.png"), vis_im)
     # cv2.imwrite(os.path.join(savedir, prefix+"img_color.png"), cv2.cvtColor(vis_im, cv2.COLOR_RGB2BGR))
     cv2.imwrite(os.path.join(savedir, prefix+"img_raw.png"),  cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
