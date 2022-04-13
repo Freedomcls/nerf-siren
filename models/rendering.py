@@ -337,25 +337,38 @@ def render_rays_3d(models,
         sample_points = sample_points.transpose(1, 0)
         sample_points = torch.unsqueeze(sample_points, 0)
         sample_points = sample_points.contiguous()
-        print(sample_points.shape, xyz_.shape)
         points_preds, _, _ = points(sample_points)
         
         clspoints[sample_mask] = points_preds[0] # N rays, N_sample, cls
-        # clspoints = points_preds[0] # N_ray, N_samples, _cls
-        # method 1: use max weight points
+        # clspoints = points_preds[0] # N_ray, N_sample, _cls
+        # method 1:  max weight points
         max_weight_sample = torch.argmax(weights, -1) # N_ray
 
-        cls_final = torch.ones((N_rays, _cls_num)) * -1
+        cls_final = torch.zeros((N_rays, _cls_num)) 
         for r in range(N_rays):
             s = max_weight_sample[r]
             if r < 10:
                 print(s, clspoints[r, s])
             cls_final[r] = clspoints[r, s]
 
-        print(cls_final)
-        
-        # cls_final = torch.max(clspoints, -2)[1]
+        # method2:  orginal rgb ways
+        # cls_final = torch.sum(weights.unsqueeze(-1)*clspoints, -2)
 
+        # method3: set threshold
+        # _set_val_thresh = 0.3
+        # _set_mask = sample_weights > _set_val_thresh
+        # cls_final = torch.zeros((N_rays, _cls_num)) 
+        # print(torch.min(sample_weights, -1))
+        # print(torch.max(sample_weights, -1))
+
+        # for r in range(N_rays):
+        #     s = _set_mask[r].detach().cpu().numpy().tolist().index(1)
+        #     cls_final[r] = clspoints[r, s]
+        #     if r < 10:
+        #         print(s, clspoints[r, s])
+            
+
+        print(cls_final)
         print(xyz_.shape, sample_mask.shape, 
             cls_final.shape, points_preds.shape, clspoints.shape,  "???")
         

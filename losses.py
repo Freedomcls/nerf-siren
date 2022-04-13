@@ -77,11 +77,7 @@ class MSENLLLoss(nn.Module):
         # ingore non-sample points
         
         rgb_loss = self.loss(inputs['rgb_coarse'], rgb_target)
-        
-        # ignore_mask = np.logical_and( (cls_target == -1).cpu().detach().numpy(), (cls_coarse==-1).cpu().detach().numpy())
-        # ignore_mask = torch.Tensor(ignore_mask).cuda()
-        # ignore_mask = cls_target == -1
-
+    
         _print_mask = cls_target !=0
         print(torch.max(cls_coarse, dim=-1)[1][_print_mask], cls_target[_print_mask], "***")
         cls_loss = F.nll_loss(cls_coarse, cls_target)
@@ -89,7 +85,7 @@ class MSENLLLoss(nn.Module):
         if 'rgb_fine' in inputs:
             rgb_loss += self.loss(inputs['rgb_fine'], rgb_target)
             cls_fine = inputs['cls_fine'].cuda()
-            # cls_loss += F.nll_loss(cls_fine, cls_target)
+            # add obj_mask when rgb fine
             cls_loss += F.nll_loss(cls_fine[obj_mask], cls_target[obj_mask])
 
             print(torch.max(cls_fine, dim=-1)[1][_print_mask], cls_target[_print_mask], "***", cls_loss)

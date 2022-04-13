@@ -61,7 +61,7 @@ def get_opts():
 
 
 @torch.no_grad()
-def batched_inference(models, points, embeddings,
+def batched_inference(models, embeddings,
                       rays, N_samples, N_importance, use_disp,
                       chunk,
                       white_back,
@@ -74,7 +74,6 @@ def batched_inference(models, points, embeddings,
     for i in range(0, B, chunk):
         rendered_ray_chunks = \
             render_func(models,
-                        points,
                         embeddings,
                         rays[i:i+chunk],
                         N_samples,
@@ -114,11 +113,12 @@ if __name__ == "__main__":
 
     load_ckpt(nerf_coarse, args.ckpt_path, model_name='nerf_coarse')
     load_ckpt(nerf_fine, args.ckpt_path, model_name='nerf_fine')
+    load_ckpt(points, args.ckpt_path, model_name='points')
     nerf_coarse.cuda().eval()
     nerf_fine.cuda().eval()
     points.cuda().eval()
 
-    models = [nerf_coarse, nerf_fine]
+    models = [nerf_coarse, nerf_fine, points]
     embeddings = [embedding_xyz, embedding_dir]
 
     imgs = []
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     for i in tqdm(range(len(dataset))):
         sample = dataset[i]
         rays = sample['rays'].cuda()
-        results = batched_inference(models, points, embeddings, rays,
+        results = batched_inference(models, embeddings, rays,
                                     args.N_samples, args.N_importance, args.use_disp,
                                     args.chunk,
                                     dataset.white_back,
