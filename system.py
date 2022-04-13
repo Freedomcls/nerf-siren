@@ -144,8 +144,9 @@ class NeRF3DSystem(NeRFSystem):
         # self.embedding_xyz = Embedding(3, 10) # 10 is the default number
         # self.embedding_dir = Embedding(3, 4) # 4 is the default number
         # self.embeddings = [self.embedding_xyz, self.embedding_dir]
-        _cls = 9
+        _cls = 11
         self.points = PointNetDenseCls(k=_cls)
+        self.models += [self.points]
         
     def decode_batch(self, batch):
         rays = batch['rays'] # (B, 8)
@@ -156,6 +157,7 @@ class NeRF3DSystem(NeRFSystem):
     def training_step(self, batch, batch_nb):
         log = {'lr': get_learning_rate(self.optimizer)}
         rays, rgbs, parse = self.decode_batch(batch)
+        print(parse, "train")
         results = self(rays)
         loss = self.loss(results, rgbs, parse)
         log['train/total_loss'] = loss["sum"]
@@ -181,7 +183,6 @@ class NeRF3DSystem(NeRFSystem):
         for i in range(0, B, self.hparams.chunk):
             rendered_ray_chunks = \
                 render_rays_3d(self.models,
-                            self.points,
                             self.embeddings,
                             rays[i:i+self.hparams.chunk],
                             self.hparams.N_samples,
@@ -205,7 +206,8 @@ class NeRF3DSystem(NeRFSystem):
         rgbs = rgbs.squeeze() # (H*W, 3)
         parse = parse.squeeze() # (H*W, CLS)
         results = self(rays)
-        print(rgbs.shape, parse.shape)
+        print(parse, "val")
+        print(parse[parse!=0])
         loss = self.loss(results, rgbs, parse)
         log = {'val_loss': loss["sum"]}
         typ = 'fine' if 'rgb_fine' in results else 'coarse'

@@ -112,7 +112,7 @@ class NeRF_3D(nn.Module):
 
 class NeRF_Point(nn.Module):
     def __init__(self,
-                 D=8, W=256, CLS=9,
+                 D=8, W=256, CLS=11,
                  in_channels_xyz=63, in_channels_dir=27, 
                  skips=[4]):
         """

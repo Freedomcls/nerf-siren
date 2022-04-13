@@ -251,7 +251,6 @@ def render_rays(models,
 
 
 def render_rays_3d(models,
-                  points,
                   embeddings,
                   rays,
                   N_samples=64,
@@ -325,26 +324,40 @@ def render_rays_3d(models,
                                      # equals "1 - (1-a1)(1-a2)...(1-an)" mathematically
 
         # use weight to sample xyz
-        _cls_num = 9
+        _cls_num = 11
         N_sample = weights.shape[1]
         clspoints = torch.zeros((N_rays, N_sample, _cls_num)).cuda() # all is background
-        
-        _thresh = 0.05 # * increase as iter ?
-        # _thresh = 0.2 # * increase as iter ?
+
+        _thresh = 0.1  # * increase as iter ?
         sample_weights = weights
         sample_mask = sample_weights>_thresh
         # print(sample_mask.sum(), weights)
-        sample_points = xyz_[sample_mask.reshape(-1)] # differentiable ?
+        sample_points = xyz_[sample_mask.reshape(-1)] 
+        # sample_points = xyz_
         sample_points = sample_points.transpose(1, 0)
         sample_points = torch.unsqueeze(sample_points, 0)
-        # print(sample_points.shape, xyz_.shape)
+        sample_points = sample_points.contiguous()
+        print(sample_points.shape, xyz_.shape)
         points_preds, _, _ = points(sample_points)
-        print(points_preds)
-        clspoints[sample_mask] = points_preds[0]
-        cls_final = torch.sum(weights.unsqueeze(-1)*clspoints, -2)
+        
+        clspoints[sample_mask] = points_preds[0] # N rays, N_sample, cls
+        # clspoints = points_preds[0] # N_ray, N_samples, _cls
+        # method 1: use max weight points
+        max_weight_sample = torch.argmax(weights, -1) # N_ray
 
-        # print(xyz_.shape, sample_mask.shape, 
-        #     cls_final.shape, points_preds.shape, clspoints.shape,  "???")
+        cls_final = torch.ones((N_rays, _cls_num)) * -1
+        for r in range(N_rays):
+            s = max_weight_sample[r]
+            if r < 10:
+                print(s, clspoints[r, s])
+            cls_final[r] = clspoints[r, s]
+
+        print(cls_final)
+        
+        # cls_final = torch.max(clspoints, -2)[1]
+
+        print(xyz_.shape, sample_mask.shape, 
+            cls_final.shape, points_preds.shape, clspoints.shape,  "???")
         
         if weights_only:
             return weights
@@ -361,6 +374,8 @@ def render_rays_3d(models,
 
     # Extract models from lists
     model_coarse = models[0]
+    points = models[-1] 
+
     embedding_xyz = embeddings[0]
     embedding_dir = embeddings[1]
 

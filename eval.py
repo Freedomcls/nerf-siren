@@ -97,7 +97,7 @@ def batched_inference(models, points, embeddings,
 if __name__ == "__main__":
     args = get_opts()
     w, h = args.img_wh
-    _cls = 9
+    _cls = 11
 
     kwargs = {'root_dir': args.root_dir,
               'split': args.split,
@@ -139,7 +139,7 @@ if __name__ == "__main__":
         # add 3d cls
 
         if args.d3:
-            cls_num = 9
+            cls_num = 11
             cls_pred = results["cls_fine"].view(h, w, cls_num).cpu().numpy()
             print(cls_pred.shape)
             cls_pred = np.argmax(cls_pred, axis=-1)
@@ -153,7 +153,7 @@ if __name__ == "__main__":
             imageio.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred)
             if DEBUG:
                 print(cls_pred[cls_pred!=0])
-                
+
             color_cls((img_pred*255).astype(np.uint8), cls_pred, \
                 f"./results/{args.dataset_name}/{args.scene_name}_cls_map", prefix=str(i))
                 

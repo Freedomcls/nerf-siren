@@ -35,9 +35,9 @@ class STN3d(nn.Module):
         # x = F.relu(self.bn2(self.conv2(x)))
         # x = F.relu(self.bn3(self.conv3(x)))
 
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
         
 
         x = torch.max(x, 2, keepdim=True)[0]
@@ -46,9 +46,9 @@ class STN3d(nn.Module):
         # x = F.relu(self.bn4(self.fc1(x)))
         # x = F.relu(self.bn5(self.fc2(x)))
 
-        x = self.fc1(x)
-        x = self.fc2(x)
-        x = self.fc3(x)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
 
         iden = Variable(torch.from_numpy(np.array([1,0,0,0,1,0,0,0,1]).astype(np.float32))).view(1,9).repeat(batchsize,1)
         if x.is_cuda:
@@ -114,9 +114,9 @@ class PointNetfeat(nn.Module):
     def forward(self, x):
         n_pts = x.size()[2]
         trans = self.stn(x)
-        x = x.transpose(2, 1)
-        x = torch.bmm(x, trans)
-        x = x.transpose(2, 1)
+        x = x.transpose(2, 1) # N, pts, 3
+        x = torch.bmm(x, trans) # do trans
+        x = x.transpose(2, 1) # N, 3, pts
         x = F.relu(self.bn1(self.conv1(x)))
 
         if self.feature_transform:
@@ -174,19 +174,20 @@ class PointNetDenseCls(nn.Module):
         self.bn3 = nn.BatchNorm1d(128)
 
     def forward(self, x):
-        print(x.shape)
+        # N, 3, pts
         batchsize = x.size()[0]
         n_pts = x.size()[2]
         x, trans, trans_feat = self.feat(x)
-        # x = F.relu(self.bn1(self.conv1(x)))
-        x = self.conv1(x)
-        # x = F.relu(self.bn2(self.conv2(x)))
-        x = self.conv2(x)
-        # x = F.relu(self.bn3(self.conv3(x)))
-        x = self.conv3(x)
+        x = F.relu(self.bn1(self.conv1(x)))
+        # x = F.relu(self.conv1(x))
+        x = F.relu(self.bn2(self.conv2(x)))
+        # x = F.relu(self.conv2(x))
+        x = F.relu(self.bn3(self.conv3(x)))
+        # x = F.relu(self.conv3(x))
         x = self.conv4(x)
         x = x.transpose(2,1).contiguous()
         x = F.log_softmax(x.view(-1,self.k), dim=-1) # use softmax
+        print(x)
         x = x.view(batchsize, n_pts, self.k)
         return x, trans, trans_feat
 

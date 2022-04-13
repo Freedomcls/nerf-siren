@@ -17,21 +17,20 @@ def merge_cls():
     atts =   ['skin', 'l_brow', 'r_brow', 'l_eye', 'r_eye', 'eye_g', 'l_ear', 'r_ear', 'ear_r',
             'nose', 'mouth', 'u_lip', 'l_lip', 'neck', 'neck_l', 'cloth', 'hair', 'hat']
 
-    new_atts = ['skin', 'brow', 'brow', 'eye', 'eye', 'eye_g', 'ear', 'ear', 'ignore', 
-            'nose', 'mouth', 'lip', 'lip',  'neck',  'ignore', 'ignore', 'hair', 'ignore']
-    # 19-> 11
+    new_atts = ['skin', 'brow', 'brow', 'eye', 'eye', 'eye', 'ear', 'ear', 'ear', 
+            'nose', 'mouth', 'lip', 'lip',  'neck',  'cloth', 'cloth', 'head', 'head']
+    # 19-> 10
     new_map = {
         'skin':1, 
         'brow':2, 
         'eye':3, 
-        'eye_g':4, 
-        'ear':5,   
-        'nose':6, 
-        'mouth':7, 
-        'lip':8, 
-        'neck':9,  
-        'hair':10, 
-        'ignore': -1,
+        'ear':4,   
+        'nose':5,
+        'mouth':6, 
+        'lip':7, 
+        'neck':8,  
+        'head':9, 
+        'cloth': 10,
     }
     ids_map = {}
     for i, (att, new_att) in enumerate(zip(atts, new_atts), 1):
@@ -39,10 +38,13 @@ def merge_cls():
     return ids_map
 
 def convert_pred(pred, scale=10):
+    pred = np.array(pred, dtype=np.float)
+    # print(pred[pred==255])
     ids_map = merge_cls()
     for ids in ids_map:
         pred[pred==int(ids)*scale] = int(ids_map[ids])
-    # print(pred[pred!=0])
+        # print(int(ids_map[ids]))
+    # print(pred[pred==255])
     return pred
 
 
@@ -140,6 +142,7 @@ class LLFFClsDataset(Dataset):
 
                 parse_res = cv2.imread(parse_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
                 parse_res = parse_res.T #cv2 load inverse h w
+                print(img.size, parse_res.shape)
                 
                 assert list(parse_res.shape[:2]) == list(img.size[:2]),\
                     f"{parse_res.shape}!={img.size}"
@@ -154,16 +157,18 @@ class LLFFClsDataset(Dataset):
                 Check this to know LANZOS sampling:
                 https://gis.stackexchange.com/questions/10931/what-is-lanczos-resampling-useful-for-in-a-spatial-context
                 """
-                parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]), interpolation=cv2.INTER_LANCZOS4)
                 parse_res = convert_pred(parse_res)
+                # parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]))
+                # print(parse_res.shape)
+
 
                 img = self.transform(img) # (3, h, w)
                 parse_res = self.transform(parse_res)
                 img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
-                parse_res = parse_res.view(1, -1).permute(1, 0) # (h*w, 1) 
+                parse_res = parse_res.reshape(-1).contiguous() # (h*w, 1) 
 
                 # parse_res = parse_res.view(3, -1).permute(1, 0) # (h*w, 3) RGB 
-
+                # print("train", parse_res.shape, parse_res[parse_res!=0])
                 self.all_rgbs += [img]
                 self.all_parse  += [parse_res]
                 
@@ -187,6 +192,7 @@ class LLFFClsDataset(Dataset):
             self.all_rays = torch.cat(self.all_rays, 0) # ((N_images-1)*h*w, 8)
             self.all_rgbs = torch.cat(self.all_rgbs, 0) # ((N_images-1)*h*w, 3) 
             self.all_parse = torch.cat(self.all_parse, 0) 
+            
         
         elif self.split == 'val':
             print('val image is', self.image_paths[val_idx])
@@ -219,11 +225,15 @@ class LLFFClsDataset(Dataset):
         return len(self.poses_test)
 
     def __getitem__(self, idx):
+        # idx means pixel
         if self.split == 'train': # use data in the buffers
             sample = {'rays': self.all_rays[idx],
                       'rgbs': self.all_rgbs[idx],
                       'parse': self.all_parse[idx],
                       }
+            # print(self.all_parse[idx], "parse train", self.all_parse.shape, self.all_parse[idx].shape)
+            # print(self.all_rgbs[idx], "parse rgb", self.all_rgbs.shape, self.all_rgbs[idx].shape)
+
 
         else:
             if self.split == 'val':

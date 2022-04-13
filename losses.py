@@ -71,19 +71,29 @@ class MSENLLLoss(nn.Module):
         loss = {}
         cls_target = torch.squeeze(cls_target)
         cls_target = cls_target.to(torch.long)
-        # obj_mask = (cls_target != 0 ).to(dtype=torch.long, device=cls_target.device)
+        obj_mask = (cls_target != 0 ).to(dtype=torch.long, device=cls_target.device)
 
-        cls_coarse = inputs['cls_coarse']
+        cls_coarse = inputs['cls_coarse'].cuda()
         # ingore non-sample points
-        cls_loss_mask_coarse = cls_coarse != -1
         
         rgb_loss = self.loss(inputs['rgb_coarse'], rgb_target)
-        print(cls_coarse.shape, cls_target.shape,  torch.max(cls_target, dim=-1), "***")
+        
+        # ignore_mask = np.logical_and( (cls_target == -1).cpu().detach().numpy(), (cls_coarse==-1).cpu().detach().numpy())
+        # ignore_mask = torch.Tensor(ignore_mask).cuda()
+        # ignore_mask = cls_target == -1
+
+        _print_mask = cls_target !=0
+        print(torch.max(cls_coarse, dim=-1)[1][_print_mask], cls_target[_print_mask], "***")
         cls_loss = F.nll_loss(cls_coarse, cls_target)
 
         if 'rgb_fine' in inputs:
             rgb_loss += self.loss(inputs['rgb_fine'], rgb_target)
-            cls_loss += F.nll_loss(inputs['cls_fine'], cls_target)
+            cls_fine = inputs['cls_fine'].cuda()
+            # cls_loss += F.nll_loss(cls_fine, cls_target)
+            cls_loss += F.nll_loss(cls_fine[obj_mask], cls_target[obj_mask])
+
+            print(torch.max(cls_fine, dim=-1)[1][_print_mask], cls_target[_print_mask], "***", cls_loss)
+
         
         loss["rgb"] = rgb_loss * weight
         loss["cls"] = cls_loss * (1-weight)
