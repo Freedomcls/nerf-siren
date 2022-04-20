@@ -2,7 +2,7 @@ import os, sys
 from opt import get_opts
 import torch
 # system
-from system import NeRFSystem, NeRF3DSystem
+from system import NeRFSystem, NeRF3DSystem, NeRF3DSystem_ib
 # pytorch-lightning
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import Trainer
@@ -10,9 +10,12 @@ from pytorch_lightning.logging import TestTubeLogger
 
 if __name__ == '__main__':
     hparams = get_opts()
-    if hparams.d3:
+    if hparams.mode == 'd3':
         print("Use NeRF_3D")
         system = NeRF3DSystem(hparams)
+    elif hparams.mode == "d3_ib":
+        print("Use NeRF_3D Img Batch")
+        system =  NeRF3DSystem_ib(hparams)
     else:
         system = NeRFSystem(hparams)
 

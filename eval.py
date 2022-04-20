@@ -68,10 +68,11 @@ def batched_inference(models, embeddings,
                       d3,):
     """Do batched inference on rays using chunk."""
     B = rays.shape[0]
-    chunk = 1024*32
+    chunk = B  # hard code 
     results = defaultdict(list)
     render_func = render_rays_3d if d3 else render_rays
     for i in range(0, B, chunk):
+        # print(rays[i:i+chunk].shape, B)
         rendered_ray_chunks = \
             render_func(models,
                         embeddings,
@@ -109,11 +110,17 @@ if __name__ == "__main__":
     embedding_dir = Embedding(3, 4)
     nerf_coarse = NeRF()
     nerf_fine = NeRF()
-    points = PointNetDenseCls(k=_cls)
+    points = PointNetDenseCls(k=_cls, inc=6)
 
     load_ckpt(nerf_coarse, args.ckpt_path, model_name='nerf_coarse')
     load_ckpt(nerf_fine, args.ckpt_path, model_name='nerf_fine')
+    # import copy
+    # a = copy.deepcopy(points.state_dict())
     load_ckpt(points, args.ckpt_path, model_name='points')
+    # b = copy.deepcopy(points.state_dict())
+    # for key in a.keys():
+    #     print (a[key] == b[key])
+    # exit()
     nerf_coarse.cuda().eval()
     nerf_fine.cuda().eval()
     points.cuda().eval()
@@ -141,16 +148,15 @@ if __name__ == "__main__":
         if args.d3:
             cls_num = 11
             cls_pred = results["cls_fine"].view(h, w, cls_num).cpu().numpy()
-            print(cls_pred.shape)
+            # cls_pred = results["cls_coarse"].view(h, w, cls_num).cpu().numpy()
             cls_pred = np.argmax(cls_pred, axis=-1)
-            print(cls_pred.shape)
 
             # cls_pred = np.max(cls_pred, axis=-1) # choose max pred
 
-            print(cls_pred, "??????/\n")
+            print(cls_pred[cls_pred!=0], "??????/\n")
 
             # cv2.imwirte(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred)
-            imageio.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred)
+            imageio.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred * 10)
             if DEBUG:
                 print(cls_pred[cls_pred!=0])
 

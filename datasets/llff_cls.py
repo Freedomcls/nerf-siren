@@ -158,7 +158,7 @@ class LLFFClsDataset(Dataset):
                 https://gis.stackexchange.com/questions/10931/what-is-lanczos-resampling-useful-for-in-a-spatial-context
                 """
                 parse_res = convert_pred(parse_res)
-                # parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]))
+                parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]))
                 # print(parse_res.shape)
 
 
@@ -225,7 +225,7 @@ class LLFFClsDataset(Dataset):
         return len(self.poses_test)
 
     def __getitem__(self, idx):
-        # idx means pixel
+        # idx means pixel, batch idx 
         if self.split == 'train': # use data in the buffers
             sample = {'rays': self.all_rays[idx],
                       'rgbs': self.all_rgbs[idx],
@@ -235,6 +235,67 @@ class LLFFClsDataset(Dataset):
             # print(self.all_rgbs[idx], "parse rgb", self.all_rgbs.shape, self.all_rgbs[idx].shape)
 
 
+        else:
+            if self.split == 'val':
+                c2w = torch.FloatTensor(self.c2w_val)
+            else:
+                c2w = torch.FloatTensor(self.poses_test[idx])
+
+            rays_o, rays_d = get_rays(self.directions, c2w)
+            if not self.spheric_poses:
+                near, far = 0, 1
+                rays_o, rays_d = get_ndc_rays(self.img_wh[1], self.img_wh[0],
+                                              self.focal, 1.0, rays_o, rays_d)
+            else:
+                near = self.bounds.min()
+                far = min(8 * near, self.bounds.max())
+
+            rays = torch.cat([rays_o, rays_d, 
+                              near*torch.ones_like(rays_o[:, :1]),
+                              far*torch.ones_like(rays_o[:, :1])],
+                              1) # (h*w, 8)
+
+            sample = {'rays': rays,
+                      'c2w': c2w}
+
+            if self.split == 'val':
+                img = Image.open(self.image_path_val).convert('RGB')
+                img = img.resize(self.img_wh, Image.LANCZOS)
+                img = self.transform(img) # (3, h, w)
+                img = img.view(3, -1).permute(1, 0) # (h*w, 3)
+                sample['rgbs'] = img
+
+                parse = cv2.imread(self.parse_path_val, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
+                parse = parse.T
+                parse = cv2.resize(parse, (self.img_wh[1], self.img_wh[0]), interpolation=cv2.INTER_LANCZOS4)
+                parse = self.transform(parse) # (1, h, w)
+
+                parse = parse.view(1, -1).permute(1, 0) # (h*w, 1)
+                # parse = parse.view(3, -1).permute(1, 0) # (h*w, 3)
+                if DEBUG:
+                    print(parse.shape, "val")
+                
+                sample["parse"] = parse
+
+        return sample
+
+
+class LLFFClsDatasetImgBatch(LLFFClsDataset):
+    def __len__(self):
+        if self.split == 'train':
+            return len(self.edited_ids) - 1 # (1 for val)
+        if self.split == 'val':
+            return self.val_num
+
+        return len(self.poses_test)
+    
+    def __getitem__(self, idx):
+        if self.split == 'train':
+            h, w = self.img_wh[1], self.img_wh[0]
+            sample = {'rays': self.all_rays[idx*h*w:(idx+1)*h*w],
+                      'rgbs': self.all_rgbs[idx*h*w:(idx+1)*h*w],
+                      'parse': self.all_parse[idx*h*w:(idx+1)*h*w],
+                      }  
         else:
             if self.split == 'val':
                 c2w = torch.FloatTensor(self.c2w_val)

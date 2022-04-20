@@ -334,9 +334,9 @@ def render_rays_3d(models,
         _cls_num = 11
         N_sample = weights.shape[1]
         clspoints = torch.zeros((N_rays, N_sample, _cls_num)).cuda() # all is background
-        # set thresh bcz oom 
+        # set thresh if oom 
         if  test_time:
-            _thresh = 0.1
+            _thresh = 0
         else:
             _thresh = 0.1
 

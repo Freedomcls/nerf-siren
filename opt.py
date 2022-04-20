@@ -6,12 +6,14 @@ def get_opts():
     parser.add_argument('--root_dir', type=str,
                         default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
                         help='root directory of dataset')
-    parser.add_argument('--d3', default=False,
-                        action="store_true",
-                        help='whether to use 3d nerf system')
+    parser.add_argument('--mode', default="normal",
+                        type=str, choices=['d3', 'd3_ib'],
+                        help='use which system')
     parser.add_argument('--dataset_name', type=str, default='blender',
-                        choices=['blender', 'llff', "llff_cls"],
+                        choices=['blender', 'llff', "llff_cls", "llff_cls_ib"], # ib mens batch as img
                         help='which dataset to train/val')
+    parser.add_argument('--pretrained', type=str, default=None,
+                        help="pretrained-model ckpt")
     parser.add_argument('--img_wh', nargs="+", type=int, default=[800, 800],
                         help='resolution (img_w, img_h) of the image')
     parser.add_argument('--spheric_poses', default=False, action="store_true",
