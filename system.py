@@ -39,6 +39,7 @@ class NeRFSystem(LightningModule):
         """Do batched inference on rays using chunk."""
         B = rays.shape[0] # B is equal to H*W
         results = defaultdict(list)
+    
         for i in range(0, B, self.hparams.chunk):
             rendered_ray_chunks = \
                 render_rays(self.models,
@@ -145,9 +146,14 @@ class NeRF3DSystem(NeRFSystem):
         # self.embedding_dir = Embedding(3, 4) # 4 is the default number
         # self.embeddings = [self.embedding_xyz, self.embedding_dir]
         _cls = 11
-        self.points = PointNetDenseCls(k=_cls)
+        self.points = PointNetDenseCls(k=_cls, inc=6)
         self.models += [self.points]
+
+        if hparams.pretrained:
+            load_ckpt(self.nerf_coarse, hparams.pretrained, model_name='nerf_coarse')
+            load_ckpt(self.nerf_fine, hparams.pretrained, model_name='nerf_fine')
         
+
     def decode_batch(self, batch):
         rays = batch['rays'] # (B, 8)
         rgbs = batch['rgbs'] # (B, 3)
@@ -158,6 +164,7 @@ class NeRF3DSystem(NeRFSystem):
         log = {'lr': get_learning_rate(self.optimizer)}
         rays, rgbs, parse = self.decode_batch(batch)
         print(parse, "train")
+        # exit()
         results = self(rays)
         loss = self.loss(results, rgbs, parse)
         log['train/total_loss'] = loss["sum"]
@@ -208,6 +215,7 @@ class NeRF3DSystem(NeRFSystem):
         results = self(rays)
         print(parse, "val")
         print(parse[parse!=0])
+        # exit("validstep")
         loss = self.loss(results, rgbs, parse)
         log = {'val_loss': loss["sum"]}
         typ = 'fine' if 'rgb_fine' in results else 'coarse'

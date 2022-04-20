@@ -11,9 +11,9 @@ import torch.nn.functional as F
 
 
 class STN3d(nn.Module):
-    def __init__(self):
+    def __init__(self, inc=3):
         super(STN3d, self).__init__()
-        self.conv1 = torch.nn.Conv1d(3, 64, 1)
+        self.conv1 = torch.nn.Conv1d(inc, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
         self.conv3 = torch.nn.Conv1d(128, 1024, 1)
         self.fc1 = nn.Linear(1024, 512)
@@ -97,10 +97,10 @@ class STNkd(nn.Module):
         return x
 
 class PointNetfeat(nn.Module):
-    def __init__(self, global_feat = True, feature_transform = False):
+    def __init__(self, global_feat = True, feature_transform = False, inc=3):
         super(PointNetfeat, self).__init__()
-        self.stn = STN3d()
-        self.conv1 = torch.nn.Conv1d(3, 64, 1)
+        self.stn = STN3d(inc=3)
+        self.conv1 = torch.nn.Conv1d(inc, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
         self.conv3 = torch.nn.Conv1d(128, 1024, 1)
         self.bn1 = nn.BatchNorm1d(64)
@@ -112,13 +112,17 @@ class PointNetfeat(nn.Module):
             self.fstn = STNkd(k=64)
 
     def forward(self, x):
+        xyz = x[:, :3, :]
+        others = x[:, 3:, :]
         n_pts = x.size()[2]
-        trans = self.stn(x)
-        x = x.transpose(2, 1) # N, pts, 3
-        x = torch.bmm(x, trans) # do trans
-        x = x.transpose(2, 1) # N, 3, pts
-        x = F.relu(self.bn1(self.conv1(x)))
+        trans = self.stn(xyz) #
+        xyz = xyz.transpose(2, 1) # bs, pts, 3
+        print(xyz.shape, trans.shape)
+        xyz = torch.bmm(xyz, trans) # do trans per point
+        xyz = xyz.transpose(2, 1) # bs, 3, pts
+        trans_x = torch.cat([xyz, others], dim=1)
 
+        x = F.relu(self.bn1(self.conv1(trans_x)))
         if self.feature_transform:
             trans_feat = self.fstn(x)
             x = x.transpose(2,1)
@@ -160,11 +164,11 @@ class PointNetCls(nn.Module):
 
 
 class PointNetDenseCls(nn.Module):
-    def __init__(self, k = 2, feature_transform=False):
+    def __init__(self, k = 2, feature_transform=False, inc=3):
         super(PointNetDenseCls, self).__init__()
         self.k = k
         self.feature_transform=feature_transform
-        self.feat = PointNetfeat(global_feat=False, feature_transform=feature_transform)
+        self.feat = PointNetfeat(global_feat=False, feature_transform=feature_transform, inc=inc)
         self.conv1 = torch.nn.Conv1d(1088, 512, 1)
         self.conv2 = torch.nn.Conv1d(512, 256, 1)
         self.conv3 = torch.nn.Conv1d(256, 128, 1)
@@ -187,7 +191,7 @@ class PointNetDenseCls(nn.Module):
         x = self.conv4(x)
         x = x.transpose(2,1).contiguous()
         x = F.log_softmax(x.view(-1,self.k), dim=-1) # use softmax
-        print(x)
+        # print(x)
         x = x.view(batchsize, n_pts, self.k)
         return x, trans, trans_feat
 

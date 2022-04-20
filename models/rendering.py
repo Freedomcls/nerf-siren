@@ -269,6 +269,8 @@ def render_rays_3d(models,
         N_samples_ = xyz_.shape[1]
         # Embed directions
         xyz_ = xyz_.view(-1, 3) # (N_rays*N_samples_, 3)
+        # print(xyz_.shape, "xyz")
+
         if not weights_only:
             dir_embedded = torch.repeat_interleave(dir_embedded, repeats=N_samples_, dim=0)
                            # (N_rays*N_samples_, embed_dir_channels)
@@ -277,18 +279,21 @@ def render_rays_3d(models,
         B = xyz_.shape[0]
         out_chunks = []
         # print(B, chunk, len(range(0, B, chunk)))
+        
         for i in range(0, B, chunk):
             # Embed positions by chunk
             xyz_embedded = embedding_xyz(xyz_[i:i+chunk]) # 3 channel encoder to 10
             if not weights_only:
+                # training split
                 xyzdir_embedded = torch.cat([xyz_embedded,
                                              dir_embedded[i:i+chunk]], 1)
             else:
                 xyzdir_embedded = xyz_embedded
-            out_chunks += [model(xyzdir_embedded, sigma_only=weights_only)]
+            with torch.no_grad(): 
+                out_chunks += [model(xyzdir_embedded, sigma_only=weights_only)]
         
         out = torch.cat(out_chunks, 0)
-        print(out.shape)
+        # print(out.shape, xyz_.shape, N_rays, N_samples)
         if weights_only:
             sigmas = out.view(N_rays, N_samples_)
         else:
@@ -322,59 +327,70 @@ def render_rays_3d(models,
             alphas * torch.cumprod(alphas_shifted, -1)[:, :-1] # (N_rays, N_samples_)
         weights_sum = weights.sum(1) # (N_rays), the accumulated opacity along the rays
                                      # equals "1 - (1-a1)(1-a2)...(1-an)" mathematically
+        if weights_only:
+            return weights
 
         # use weight to sample xyz
         _cls_num = 11
         N_sample = weights.shape[1]
         clspoints = torch.zeros((N_rays, N_sample, _cls_num)).cuda() # all is background
+        # set thresh bcz oom 
+        if  test_time:
+            _thresh = 0.1
+        else:
+            _thresh = 0.1
 
-        _thresh = 0.1  # * increase as iter ?
         sample_weights = weights
         sample_mask = sample_weights>_thresh
-        # print(sample_mask.sum(), weights)
+        # print(xyz_.shape)
         sample_points = xyz_[sample_mask.reshape(-1)] 
-        # sample_points = xyz_
-        sample_points = sample_points.transpose(1, 0)
-        sample_points = torch.unsqueeze(sample_points, 0)
+        rgbs_points = rgbs.reshape(-1,3)[sample_mask.reshape(-1)]
+        sample_points = torch.cat([sample_points,  rgbs_points], dim=1) # pts, 6, 
+        sample_points = sample_points.transpose(1, 0) # 6, pts
+        sample_points = torch.unsqueeze(sample_points, 0) # 1, 6, pts
         sample_points = sample_points.contiguous()
         points_preds, _, _ = points(sample_points)
+        print(points_preds)
         
         clspoints[sample_mask] = points_preds[0] # N rays, N_sample, cls
-        # clspoints = points_preds[0] # N_ray, N_sample, _cls
-        # method 1:  max weight points
-        max_weight_sample = torch.argmax(weights, -1) # N_ray
 
-        cls_final = torch.zeros((N_rays, _cls_num)) 
-        for r in range(N_rays):
-            s = max_weight_sample[r]
-            if r < 10:
-                print(s, clspoints[r, s])
-            cls_final[r] = clspoints[r, s]
+        # method 1:  max weight points
+        # max_weight_sample = torch.argmax(weights, -1) # N_ray
+        # cls_final = torch.zeros((N_rays, _cls_num)) 
+        # for r in range(N_rays):
+        #     s = max_weight_sample[r]
+        #     if r < 10:
+        #         print(s, clspoints[r, s], r, "*******")
+        #     cls_final[r] = clspoints[r, s]
 
         # method2:  orginal rgb ways
-        # cls_final = torch.sum(weights.unsqueeze(-1)*clspoints, -2)
+        cls_final = torch.sum(weights.unsqueeze(-1)*clspoints, -2)
 
         # method3: set threshold
-        # _set_val_thresh = 0.3
+        # _set_val_thresh = 0.1
         # _set_mask = sample_weights > _set_val_thresh
         # cls_final = torch.zeros((N_rays, _cls_num)) 
-        # print(torch.min(sample_weights, -1))
-        # print(torch.max(sample_weights, -1))
-
         # for r in range(N_rays):
-        #     s = _set_mask[r].detach().cpu().numpy().tolist().index(1)
-        #     cls_final[r] = clspoints[r, s]
-        #     if r < 10:
-        #         print(s, clspoints[r, s])
+        #     _tmp_list = _set_mask[r].detach().cpu().numpy().tolist()
+        #     if True in _tmp_list:
+        #         s = _tmp_list.index(True)
+        #         cls_final[r] = clspoints[r, s]
+        #         if r < 10:
+        #             print(s, clspoints[r, s])
             
 
-        print(cls_final)
-        print(xyz_.shape, sample_mask.shape, 
-            cls_final.shape, points_preds.shape, clspoints.shape,  "???")
-        
-        if weights_only:
-            return weights
-
+        # print(cls_final)
+        # print(xyz_.shape, sample_mask.shape, weights.shape,
+        #     cls_final.shape, points_preds.shape, clspoints.shape,  "?????????")
+        # exit()
+        """
+        iter train: torch.Size([131072, 3]) torch.Size([1024, 128]) torch.Size([1024, 11]) torch.Size([1, 1711, 11]) torch.Size([1024, 128, 11])
+        eval: torch.Size([2097152, 3]) torch.Size([32768, 64]) torch.Size([32768, 11]) torch.Size([1, 70369, 11]) torch.Size([32768, 64, 11]) ???
+         eval-fine: torch.Size([4194304, 3]) torch.Size([32768, 128]) torch.Size([32768, 11]) torch.Size([1, 37503, 11]) torch.Size([32768, 128, 11]) ???
+        points in eval is 32x than train, why? 
+        1.the training batch is 1024 and split chunk
+        """
+       
         # compute final weighted outputs
         rgb_final = torch.sum(weights.unsqueeze(-1)*rgbs, -2) # (N_rays, 3)
         #  sum N_samples rgb results
@@ -407,7 +423,8 @@ def render_rays_3d(models,
         z_vals = near * (1-z_steps) + far * z_steps
     else: # use linear sampling in disparity space
         z_vals = 1/(1/near * (1-z_steps) + 1/far * z_steps)
-
+    # print(z_vals, near, far)
+    # exit()
     z_vals = z_vals.expand(N_rays, N_samples)
     
     if perturb > 0: # perturb sampling depths (z_vals)
@@ -421,8 +438,9 @@ def render_rays_3d(models,
 
     xyz_coarse_sampled = rays_o.unsqueeze(1) + \
                          rays_d.unsqueeze(1) * z_vals.unsqueeze(2) # (N_rays, N_samples, 3)
-
+    # print(xyz_coarse_sampled.shape, "coarse", )
     if test_time:
+        # print(xyz_coarse_sampled.shape, "coarse", )
         weights_coarse = \
             inference(model_coarse, points, embedding_xyz, xyz_coarse_sampled, rays_d,
                       dir_embedded, z_vals, weights_only=True)
@@ -448,7 +466,7 @@ def render_rays_3d(models,
         xyz_fine_sampled = rays_o.unsqueeze(1) + \
                            rays_d.unsqueeze(1) * z_vals.unsqueeze(2)
                            # (N_rays, N_samples+N_importance, 3)
-
+        # print(xyz_fine_sampled.shape, "fine", )
         model_fine = models[1]
         rgb_fine, depth_fine, cls_fine, weights_fine = \
             inference(model_fine, points, embedding_xyz, xyz_fine_sampled, rays_d,
@@ -457,5 +475,6 @@ def render_rays_3d(models,
         result['depth_fine'] = depth_fine
         result['cls_fine'] = cls_fine
         result['opacity_fine'] = weights_fine.sum(1)
+    # exit()
 
     return result
