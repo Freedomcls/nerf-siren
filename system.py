@@ -146,7 +146,7 @@ class NeRF3DSystem(NeRFSystem):
         # self.embedding_dir = Embedding(3, 4) # 4 is the default number
         # self.embeddings = [self.embedding_xyz, self.embedding_dir]
         _cls = 11
-        self.points = PointNetDenseCls(k=_cls, inc=6)
+        self.points = PointNetDenseCls(k=_cls, inc=6) # add rgb
         self.models += [self.points]
 
         if hparams.pretrained:
@@ -163,8 +163,6 @@ class NeRF3DSystem(NeRFSystem):
     def training_step(self, batch, batch_nb):
         log = {'lr': get_learning_rate(self.optimizer)}
         rays, rgbs, parse = self.decode_batch(batch)
-        print(parse, "train")
-        # exit()
         results = self(rays)
         loss = self.loss(results, rgbs, parse)
         log['train/total_loss'] = loss["sum"]
@@ -216,9 +214,6 @@ class NeRF3DSystem(NeRFSystem):
         rgbs = rgbs.squeeze() # (H*W, 3)
         parse = parse.squeeze() # (H*W, CLS)
         results = self(rays)
-        print(parse, "val")
-        print(parse[parse!=0])
-        # exit("validstep")
         loss = self.loss(results, rgbs, parse)
         log = {'val_loss': loss["sum"]}
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
@@ -239,53 +234,18 @@ class NeRF3DSystem(NeRFSystem):
         return log
 
 
-class NeRF3DSystem_ib(NeRFSystem):
+class NeRF3DSystem_ib(NeRF3DSystem):
     def __init__(self, hparams):
         super(NeRF3DSystem_ib, self).__init__(hparams)
-        # self.embedding_xyz = Embedding(3, 10) # 10 is the default number
-        # self.embedding_dir = Embedding(3, 4) # 4 is the default number
-        # self.embeddings = [self.embedding_xyz, self.embedding_dir]
-        _cls = 11
-        self.points = PointNetDenseCls(k=_cls, inc=6)
-        self.models += [self.points]
-
         if hparams.pretrained:
             load_ckpt(self.nerf_coarse, hparams.pretrained, model_name='nerf_coarse')
             load_ckpt(self.nerf_fine, hparams.pretrained, model_name='nerf_fine')
-        
-    def decode_batch(self, batch):
-        rays = batch['rays'] # (batch, imgw*imgh, 8)
-        rgbs = batch['rgbs'] # 
-        parse = batch["parse"] 
-        return rays, rgbs, parse
 
-    def training_step(self, batch, batch_nb):
-        log = {'lr': get_learning_rate(self.optimizer)}
-        rays, rgbs, parse = self.decode_batch(batch)
-        print(parse, "train")
-        results = self(rays)
-        loss = self.loss(results, rgbs, parse)
-        log['train/total_loss'] = loss["sum"]
-        log['train/rgb_loss'] = loss["rgb"]
-        log['train/cls_loss'] = loss["cls"]
-
-        typ = 'fine' if 'rgb_fine' in results else 'coarse'
-
-        with torch.no_grad():
-            psnr_ = psnr(results[f'rgb_{typ}'], rgbs)
-            log['train/psnr'] = psnr_
-            
-
-        return {'loss': loss["sum"],
-                'progress_bar': {'train_psnr': psnr_ }, 
-                'log': log
-               }
                
     def forward(self, rays):
         """Render cls additionaly."""
         rays_flat = rays.reshape(-1, 8) # batch_size * imgh * imgh 
         B = rays_flat.shape[0]
-        print(B, "!!!!")
         results = defaultdict(list)
         for i in range(0, B, self.hparams.chunk):
             rendered_ray_chunks = \
@@ -302,63 +262,6 @@ class NeRF3DSystem_ib(NeRFSystem):
 
             for k, v in rendered_ray_chunks.items():
                 results[k] += [v]
-
         for k, v in results.items():
             results[k] = torch.cat(v, 0)        
         return results
-
-    def training_step(self, batch, batch_nb):
-        log = {'lr': get_learning_rate(self.optimizer)}
-        rays, rgbs, parse = self.decode_batch(batch)
-        # exit()
-        results = self(rays) # N*imh*imhw, -1
-        rays = rays.reshape(-1, 8) # rm batch size dimension
-        rgbs = rgbs.reshape(-1, 3)
-        parse = parse.reshape(-1, 1)
-        loss = self.loss(results, rgbs, parse)
-
-        log['train/total_loss'] = loss["sum"]
-        log['train/rgb_loss'] = loss["rgb"]
-        log['train/cls_loss'] = loss["cls"]
-
-        typ = 'fine' if 'rgb_fine' in results else 'coarse'
-
-        with torch.no_grad():
-            psnr_ = psnr(results[f'rgb_{typ}'], rgbs)
-            log['train/psnr'] = psnr_
-            
-
-        return {'loss': loss["sum"],
-                'progress_bar': {'train_psnr': psnr_ }, 
-                'log': log
-               }
-
-    def validation_step(self, batch, batch_nb):
-        rays, rgbs, parse = self.decode_batch(batch)
-        rays = rays.squeeze() # (H*W, 3)
-        rgbs = rgbs.squeeze() # (H*W, 3)
-        parse = parse.squeeze() # (H*W, CLS)
-        results = self(rays)
-        print(parse, "val")
-        print(parse[parse!=0])
-        # exit("validstep")
-        loss = self.loss(results, rgbs, parse)
-        log = {'val_loss': loss["sum"]}
-        typ = 'fine' if 'rgb_fine' in results else 'coarse'
-    
-        if batch_nb == 0:
-            W, H = self.hparams.img_wh
-            img = results[f'rgb_{typ}'].view(H, W, 3).cpu()
-            img = img.permute(2, 0, 1) # (3, H, W)
-            img_gt = rgbs.view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
-            depth = visualize_depth(results[f'depth_{typ}'].view(H, W)) # (3, H, W)
-            stack = torch.stack([img_gt, img, depth]) # (3, 3, H, W)
-            self.logger.experiment.add_images('val/GT_pred_depth',
-                                               stack, self.global_step)
-
-        log['val_psnr'] = psnr(results[f'rgb_{typ}'], rgbs)
-        log['val_cls_loss'] = loss["cls"]
-        log['val_rgb_loss'] = loss["rgb"]
-        return log
-
-    

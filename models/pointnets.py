@@ -29,6 +29,7 @@ class STN3d(nn.Module):
 
 
     def forward(self, x):
+        # NOTE: cannot handle bs=1 case
         batchsize = x.size()[0]
 
         # x = F.relu(self.bn1(self.conv1(x)))
@@ -45,7 +46,7 @@ class STN3d(nn.Module):
 
         # x = F.relu(self.bn4(self.fc1(x)))
         # x = F.relu(self.bn5(self.fc2(x)))
-
+        
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
@@ -117,7 +118,7 @@ class PointNetfeat(nn.Module):
         n_pts = x.size()[2]
         trans = self.stn(xyz) #
         xyz = xyz.transpose(2, 1) # bs, pts, 3
-        print(xyz.shape, trans.shape)
+        # print(xyz.shape, trans.shape)
         xyz = torch.bmm(xyz, trans) # do trans per point
         xyz = xyz.transpose(2, 1) # bs, 3, pts
         trans_x = torch.cat([xyz, others], dim=1)
@@ -190,8 +191,7 @@ class PointNetDenseCls(nn.Module):
         # x = F.relu(self.conv3(x))
         x = self.conv4(x)
         x = x.transpose(2,1).contiguous()
-        x = F.log_softmax(x.view(-1,self.k), dim=-1) # use softmax
-        # print(x)
+        x = F.log_softmax(x.view(-1,self.k), dim=-1) 
         x = x.view(batchsize, n_pts, self.k)
         return x, trans, trans_feat
 

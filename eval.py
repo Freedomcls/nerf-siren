@@ -114,13 +114,8 @@ if __name__ == "__main__":
 
     load_ckpt(nerf_coarse, args.ckpt_path, model_name='nerf_coarse')
     load_ckpt(nerf_fine, args.ckpt_path, model_name='nerf_fine')
-    # import copy
-    # a = copy.deepcopy(points.state_dict())
     load_ckpt(points, args.ckpt_path, model_name='points')
-    # b = copy.deepcopy(points.state_dict())
-    # for key in a.keys():
-    #     print (a[key] == b[key])
-    # exit()
+    
     nerf_coarse.cuda().eval()
     nerf_fine.cuda().eval()
     points.cuda().eval()
@@ -147,23 +142,16 @@ if __name__ == "__main__":
 
         if args.d3:
             cls_num = 11
-            cls_pred = results["cls_fine"].view(h, w, cls_num).cpu().numpy()
-            # cls_pred = results["cls_coarse"].view(h, w, cls_num).cpu().numpy()
-            cls_pred = np.argmax(cls_pred, axis=-1)
-
-            # cls_pred = np.max(cls_pred, axis=-1) # choose max pred
-
-            print(cls_pred[cls_pred!=0], "??????/\n")
-
-            # cv2.imwirte(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred)
-            imageio.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred * 10)
+            raw_cls_pred = results["cls_fine"].view(h, w, cls_num).cpu().numpy()
+            cls_pred = np.argmax(raw_cls_pred, axis=-1)
+            cv2.imwirte(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred * 10)
+            # imageio.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred * 255)
             if DEBUG:
                 print(cls_pred[cls_pred!=0])
 
             color_cls((img_pred*255).astype(np.uint8), cls_pred, \
                 f"./results/{args.dataset_name}/{args.scene_name}_cls_map", prefix=str(i))
                 
-
         if args.save_depth:
             depth_pred = results['depth_fine'].view(h, w).cpu().numpy()
             depth_pred = np.nan_to_num(depth_pred)

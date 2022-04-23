@@ -30,6 +30,7 @@ def color_cls(img, pred_map, savedir, prefix=""):
     print(num_cls)
     for i in range(1, num_cls):
         index = np.where(vis_pred==i)
+        # print(i, index, vis_pred)
 
         vis_pred_color[index[0], index[1], :] = part_colors[i]
         

@@ -66,7 +66,7 @@ class MSENLLLoss(nn.Module):
         super(MSENLLLoss, self).__init__()
         self.loss = nn.MSELoss(reduction='mean')
 
-    def forward(self, inputs, rgb_target, cls_target, weight=0.6):
+    def forward(self, inputs, rgb_target, cls_target, weight=0.):
         # print(inputs['cls_coarse'].shape, cls_target.shape)
         loss = {}
         cls_target = torch.squeeze(cls_target)
@@ -80,19 +80,21 @@ class MSENLLLoss(nn.Module):
     
         _print_mask = cls_target !=0
         print(torch.max(cls_coarse, dim=-1)[1][_print_mask], cls_target[_print_mask], "***")
-        cls_loss = F.nll_loss(cls_coarse, cls_target)
+        # cls_loss = F.nll_loss(cls_coarse[obj_mask], cls_target[obj_mask], reduction='mean')
+        cls_loss = F.nll_loss(cls_coarse, cls_target, reduction='mean')
 
         if 'rgb_fine' in inputs:
             rgb_loss += self.loss(inputs['rgb_fine'], rgb_target)
             cls_fine = inputs['cls_fine'].cuda()
             # add obj_mask when rgb fine
-            cls_loss += F.nll_loss(cls_fine[obj_mask], cls_target[obj_mask])
+            # cls_loss += F.nll_loss(cls_fine[obj_mask], cls_target[obj_mask], reduction='mean')
+            cls_loss += F.nll_loss(cls_fine, cls_target, reduction='mean')
 
             print(torch.max(cls_fine, dim=-1)[1][_print_mask], cls_target[_print_mask], "***", cls_loss)
 
         
         loss["rgb"] = rgb_loss * weight
-        loss["cls"] = cls_loss * (1-weight)
+        loss["cls"] = cls_loss * (1-weight) 
         loss["sum"] = loss["rgb"] + loss["cls"]
 
         return loss

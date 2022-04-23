@@ -1,6 +1,9 @@
 import torch
 from torchsearchsorted import searchsorted
 import os
+import torch.nn.functional as F
+import numpy as np
+
 DEBUG = os.environ.get("DEBUG", False)
 
 __all__ = ['render_rays', "render_rays_3d"]
@@ -260,7 +263,8 @@ def render_rays_3d(models,
                   N_importance=0,
                   chunk=1024*32,
                   white_back=False,
-                  test_time=False
+                  test_time=False,
+                  _cls_num=11,
                 ):
     """
     render cls results.
@@ -331,69 +335,45 @@ def render_rays_3d(models,
             return weights
 
         # use weight to sample xyz
-        _cls_num = 11
         N_sample = weights.shape[1]
         clspoints = torch.zeros((N_rays, N_sample, _cls_num)).cuda() # all is background
-        # set thresh if oom 
+        # set thresh avoid oom 
         if  test_time:
-            _thresh = 0
+            _thresh = 0.5
         else:
-            _thresh = 0.1
+            _thresh = 0.5
 
+        # sample_weights = weights
         sample_weights = weights
         sample_mask = sample_weights>_thresh
-        # print(xyz_.shape)
         sample_points = xyz_[sample_mask.reshape(-1)] 
+        # normalize 
+        norm_sp = np.linalg.norm(sample_points.detach().cpu().numpy()) # 1.6 not support torch.linalg.norm
+        sample_points = sample_points / norm_sp
+
         rgbs_points = rgbs.reshape(-1,3)[sample_mask.reshape(-1)]
         sample_points = torch.cat([sample_points,  rgbs_points], dim=1) # pts, 6, 
         sample_points = sample_points.transpose(1, 0) # 6, pts
         sample_points = torch.unsqueeze(sample_points, 0) # 1, 6, pts
         sample_points = sample_points.contiguous()
         points_preds, _, _ = points(sample_points)
-        print(points_preds)
+        points_preds = points_preds[0] # pts = sample_masks
+        # points_preds = F.log_softmax(points_preds, dim=1)
+        clspoints[sample_mask] = points_preds # N rays, N_sample, cls
         
-        clspoints[sample_mask] = points_preds[0] # N rays, N_sample, cls
+        # orginal rgb ways, use sum
+        cls_final = torch.sum(weights.unsqueeze(-1)*clspoints, -2) # N_rays, cls
 
-        # method 1:  max weight points
-        # max_weight_sample = torch.argmax(weights, -1) # N_ray
-        # cls_final = torch.zeros((N_rays, _cls_num)) 
-        # for r in range(N_rays):
-        #     s = max_weight_sample[r]
-        #     if r < 10:
-        #         print(s, clspoints[r, s], r, "*******")
-        #     cls_final[r] = clspoints[r, s]
-
-        # method2:  orginal rgb ways
-        cls_final = torch.sum(weights.unsqueeze(-1)*clspoints, -2)
-
-        # method3: set threshold
-        # _set_val_thresh = 0.1
-        # _set_mask = sample_weights > _set_val_thresh
-        # cls_final = torch.zeros((N_rays, _cls_num)) 
-        # for r in range(N_rays):
-        #     _tmp_list = _set_mask[r].detach().cpu().numpy().tolist()
-        #     if True in _tmp_list:
-        #         s = _tmp_list.index(True)
-        #         cls_final[r] = clspoints[r, s]
-        #         if r < 10:
-        #             print(s, clspoints[r, s])
-            
-
-        # print(cls_final)
-        # print(xyz_.shape, sample_mask.shape, weights.shape,
-        #     cls_final.shape, points_preds.shape, clspoints.shape,  "?????????")
-        # exit()
-        """
-        iter train: torch.Size([131072, 3]) torch.Size([1024, 128]) torch.Size([1024, 11]) torch.Size([1, 1711, 11]) torch.Size([1024, 128, 11])
-        eval: torch.Size([2097152, 3]) torch.Size([32768, 64]) torch.Size([32768, 11]) torch.Size([1, 70369, 11]) torch.Size([32768, 64, 11]) ???
-         eval-fine: torch.Size([4194304, 3]) torch.Size([32768, 128]) torch.Size([32768, 11]) torch.Size([1, 37503, 11]) torch.Size([32768, 128, 11]) ???
-        points in eval is 32x than train, why? 
-        1.the training batch is 1024 and split chunk
-        """
-       
         # compute final weighted outputs
         rgb_final = torch.sum(weights.unsqueeze(-1)*rgbs, -2) # (N_rays, 3)
         #  sum N_samples rgb results
+        if DEBUG:
+            import ipdb; ipdb.set_trace()
+            print(torch.min(xyz_, dim=0), torch.max(xyz_, dim=0), sigmas)
+            print(weights)
+            print(rgb_final, cls_final.shape, clspoints.shape)
+            print(torch.argmax(clspoints, dim=-1))
+            print(cls_final)
 
         depth_final = torch.sum(weights*z_vals, -1) # (N_rays)
         if white_back:
@@ -475,6 +455,5 @@ def render_rays_3d(models,
         result['depth_fine'] = depth_fine
         result['cls_fine'] = cls_fine
         result['opacity_fine'] = weights_fine.sum(1)
-    # exit()
 
     return result
