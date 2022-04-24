@@ -15,7 +15,7 @@ import metrics
 
 from datasets import dataset_dict
 from datasets.depth_utils import *
-# import cv2
+import cv2
 torch.backends.cudnn.benchmark = True
 DEBUG = eval(os.environ.get("DEBUG", "False"))
 
@@ -144,7 +144,7 @@ if __name__ == "__main__":
             cls_num = 11
             raw_cls_pred = results["cls_fine"].view(h, w, cls_num).cpu().numpy()
             cls_pred = np.argmax(raw_cls_pred, axis=-1)
-            cv2.imwirte(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred * 10)
+            cv2.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred * 10)
             # imageio.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred * 255)
             if DEBUG:
                 print(cls_pred[cls_pred!=0])

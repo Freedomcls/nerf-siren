@@ -127,7 +127,7 @@ def render_rays(models,
         # Perform model inference to get rgb and raw sigma
         B = xyz_.shape[0]
         out_chunks = []
-        print(xyz_.shape, chunk)
+        
         for i in range(0, B, chunk):
             # Embed positions by chunk
             xyz_embedded = embedding_xyz(xyz_[i:i+chunk])
@@ -264,7 +264,8 @@ def render_rays_3d(models,
                   chunk=1024*32,
                   white_back=False,
                   test_time=False,
-                  _cls_num=11,
+                  _cls_num=6,
+                  no_grad_on_nerf=True,
                 ):
     """
     render cls results.
@@ -293,9 +294,12 @@ def render_rays_3d(models,
                                              dir_embedded[i:i+chunk]], 1)
             else:
                 xyzdir_embedded = xyz_embedded
-            with torch.no_grad(): 
+            if no_grad_on_nerf:
+                with torch.no_grad(): 
+                    out_chunks += [model(xyzdir_embedded, sigma_only=weights_only)]
+            else:
                 out_chunks += [model(xyzdir_embedded, sigma_only=weights_only)]
-        
+            
         out = torch.cat(out_chunks, 0)
         # print(out.shape, xyz_.shape, N_rays, N_samples)
         if weights_only:

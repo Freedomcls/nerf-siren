@@ -17,21 +17,33 @@ def merge_cls():
     atts =   ['skin', 'l_brow', 'r_brow', 'l_eye', 'r_eye', 'eye_g', 'l_ear', 'r_ear', 'ear_r',
             'nose', 'mouth', 'u_lip', 'l_lip', 'neck', 'neck_l', 'cloth', 'hair', 'hat']
 
-    new_atts = ['skin', 'brow', 'brow', 'eye', 'eye', 'eye', 'ear', 'ear', 'ear', 
-            'nose', 'mouth', 'lip', 'lip',  'neck',  'cloth', 'cloth', 'head', 'head']
-    # 19-> 10
+    # new_atts = ['skin', 'brow', 'brow', 'eye', 'eye', 'eye', 'ear', 'ear', 'ear', 
+    #         'nose', 'mouth', 'lip', 'lip',  'neck',  'cloth', 'cloth', 'head', 'head']
+    new_atts = ['skin', 'face', 'face', 'face', 'face', 'face', 'head', 'head', 'head', 
+            'face', 'face', 'face', 'face',  'neck',  'cloth', 'cloth', 'head', 'head']
+    
+
     new_map = {
         'skin':1, 
-        'brow':2, 
-        'eye':3, 
-        'ear':4,   
-        'nose':5,
-        'mouth':6, 
-        'lip':7, 
-        'neck':8,  
-        'head':9, 
-        'cloth': 10,
+        'face':2, 
+        'neck':3, 
+        'head':4,
+        'cloth': 5,
     }
+    
+    # 19-> 10
+    # new_map = {
+    #     'skin':1, 
+    #     'brow':2, 
+    #     'eye':3, 
+    #     'ear':4,   
+    #     'nose':5,
+    #     'mouth':6, 
+    #     'lip':7, 
+    #     'neck':8,  
+    #     'head':9, 
+    #     'cloth': 10,
+    # }
     ids_map = {}
     for i, (att, new_att) in enumerate(zip(atts, new_atts), 1):
         ids_map[i] = new_map[new_att]

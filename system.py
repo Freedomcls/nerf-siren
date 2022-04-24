@@ -145,7 +145,7 @@ class NeRF3DSystem(NeRFSystem):
         # self.embedding_xyz = Embedding(3, 10) # 10 is the default number
         # self.embedding_dir = Embedding(3, 4) # 4 is the default number
         # self.embeddings = [self.embedding_xyz, self.embedding_dir]
-        _cls = 11
+        _cls = 6
         self.points = PointNetDenseCls(k=_cls, inc=6) # add rgb
         self.models += [self.points]
 

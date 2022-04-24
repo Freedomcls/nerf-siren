@@ -79,7 +79,7 @@ class MSENLLLoss(nn.Module):
         rgb_loss = self.loss(inputs['rgb_coarse'], rgb_target)
     
         _print_mask = cls_target !=0
-        print(torch.max(cls_coarse, dim=-1)[1][_print_mask], cls_target[_print_mask], "***")
+        if DEBUG: print(torch.max(cls_coarse, dim=-1)[1][_print_mask], cls_target[_print_mask], "***")
         # cls_loss = F.nll_loss(cls_coarse[obj_mask], cls_target[obj_mask], reduction='mean')
         cls_loss = F.nll_loss(cls_coarse, cls_target, reduction='mean')
 
@@ -89,8 +89,7 @@ class MSENLLLoss(nn.Module):
             # add obj_mask when rgb fine
             # cls_loss += F.nll_loss(cls_fine[obj_mask], cls_target[obj_mask], reduction='mean')
             cls_loss += F.nll_loss(cls_fine, cls_target, reduction='mean')
-
-            print(torch.max(cls_fine, dim=-1)[1][_print_mask], cls_target[_print_mask], "***", cls_loss)
+            if DEBUG: print(torch.max(cls_fine, dim=-1)[1][_print_mask], cls_target[_print_mask], "***", cls_loss)
 
         
         loss["rgb"] = rgb_loss * weight
