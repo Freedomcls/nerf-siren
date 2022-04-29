@@ -3,7 +3,9 @@ from pytorch_lightning import LightningModule
 from models.nerf import Embedding, NeRF
 from models.nerf_cls import NeRF_3D
 from models.pointnets import PointNetDenseCls
-from models.rendering import render_rays, render_rays_3d
+from models.rendering import render_rays, render_rays_3d, render_rays_3d_conv
+from models.ConvNetWork import *
+
 # optimizer, scheduler, visualization
 from utils import *
 from losses import loss_dict
@@ -139,19 +141,28 @@ class NeRFSystem(LightningModule):
                }
 
 
+
 class NeRF3DSystem(NeRFSystem):
     def __init__(self, hparams):
         super(NeRF3DSystem, self).__init__(hparams)
         # self.embedding_xyz = Embedding(3, 10) # 10 is the default number
         # self.embedding_dir = Embedding(3, 4) # 4 is the default number
         # self.embeddings = [self.embedding_xyz, self.embedding_dir]
-        _cls = 6
-        self.points = PointNetDenseCls(k=_cls, inc=6) # add rgb
+        _cls = 11
+        if self.hparams.semantic_network == 'pointnet':
+            self.points = PointNetDenseCls(k=_cls, inc=6) # add rgb
+            self.render_fun = render_rays_3d
+        elif self.hparams.semantic_network == 'conv3d':
+            self.points = MinkUNet14A(in_channels=3, out_channels=_cls)
+            self.render_fun = render_rays_3d_conv
+        else:
+            raise NotImplementedError(self.hparams.semantic_network)
+
         self.models += [self.points]
 
-        if hparams.pretrained:
-            load_ckpt(self.nerf_coarse, hparams.pretrained, model_name='nerf_coarse')
-            load_ckpt(self.nerf_fine, hparams.pretrained, model_name='nerf_fine')
+        #if hparams.pretrained:
+        #    load_ckpt(self.nerf_coarse, hparams.pretrained, model_name='nerf_coarse')
+        #    load_ckpt(self.nerf_fine, hparams.pretrained, model_name='nerf_fine')
         
 
     def decode_batch(self, batch):
@@ -190,7 +201,7 @@ class NeRF3DSystem(NeRFSystem):
         results = defaultdict(list)
         for i in range(0, B, self.hparams.chunk):
             rendered_ray_chunks = \
-                render_rays_3d(self.models,
+                self.render_fun(self.models,
                             self.embeddings,
                             rays[i:i+self.hparams.chunk],
                             self.hparams.N_samples,
@@ -199,7 +210,8 @@ class NeRF3DSystem(NeRFSystem):
                             self.hparams.noise_std,
                             self.hparams.N_importance,
                             self.hparams.chunk, # chunk size is effective in val mode
-                            self.train_dataset.white_back)
+                            self.train_dataset.white_back,
+                            network=self.hparams.semantic_network)
 
             for k, v in rendered_ray_chunks.items():
                 results[k] += [v]
@@ -234,6 +246,7 @@ class NeRF3DSystem(NeRFSystem):
         return log
 
 
+
 class NeRF3DSystem_ib(NeRF3DSystem):
     def __init__(self, hparams):
         super(NeRF3DSystem_ib, self).__init__(hparams)
@@ -249,7 +262,7 @@ class NeRF3DSystem_ib(NeRF3DSystem):
         results = defaultdict(list)
         for i in range(0, B, self.hparams.chunk):
             rendered_ray_chunks = \
-                render_rays_3d(self.models,
+                self.render_fun(self.models,
                             self.embeddings,
                             rays_flat[i:i+self.hparams.chunk],
                             self.hparams.N_samples,

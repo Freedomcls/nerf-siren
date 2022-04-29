@@ -28,7 +28,7 @@ def get_opts():
                         default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
                         help='root directory of dataset')
     parser.add_argument('--dataset_name', type=str, default='blender',
-                        choices=['blender', 'llff', "llff_cls"],
+                        choices=['blender', 'llff', "llff_cls", "llff_cls_ib"],
                         help='which dataset to validate')
     parser.add_argument('--scene_name', type=str, default='test',
                         help='scene name, used as output folder name')
@@ -97,7 +97,7 @@ def batched_inference(models, embeddings,
 if __name__ == "__main__":
     args = get_opts()
     w, h = args.img_wh
-    _cls = 11
+    _cls = 6
 
     kwargs = {'root_dir': args.root_dir,
               'split': args.split,
@@ -141,7 +141,7 @@ if __name__ == "__main__":
         # add 3d cls
 
         if args.d3:
-            cls_num = 11
+            cls_num = _cls
             raw_cls_pred = results["cls_fine"].view(h, w, cls_num).cpu().numpy()
             cls_pred = np.argmax(raw_cls_pred, axis=-1)
             cv2.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred * 10)

@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from .nerf import Embedding
 from .pointnets  import PointNetDenseCls
+from .ConvNetWork import *
 import os
 
 DEBUG = os.environ.get("DEBUG", False)

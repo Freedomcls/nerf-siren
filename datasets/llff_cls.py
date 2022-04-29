@@ -154,7 +154,7 @@ class LLFFClsDataset(Dataset):
 
                 parse_res = cv2.imread(parse_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
                 parse_res = parse_res.T #cv2 load inverse h w
-                print(img.size, parse_res.shape)
+                # print(img.size, parse_res.shape)
                 
                 assert list(parse_res.shape[:2]) == list(img.size[:2]),\
                     f"{parse_res.shape}!={img.size}"

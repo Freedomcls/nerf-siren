@@ -12,6 +12,9 @@ def get_opts():
     parser.add_argument('--dataset_name', type=str, default='blender',
                         choices=['blender', 'llff', "llff_cls", "llff_cls_ib"], # ib mens batch as img
                         help='which dataset to train/val')
+    parser.add_argument('-sn', '--semantic_network', type=str, default='pointnet',
+                        choices=['pointnet', 'conv3d'], 
+                        help='use which network to extract semantic features')
     parser.add_argument('--pretrained', type=str, default=None,
                         help="pretrained-model ckpt")
     parser.add_argument('--img_wh', nargs="+", type=int, default=[800, 800],
