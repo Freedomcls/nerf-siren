@@ -618,7 +618,7 @@ def render_rays_3d_conv(models,
         rgb_final = torch.sum(weights.unsqueeze(-1)*rgbs, -2) # (N_rays, 3)
         #  sum N_samples rgb results
         if DEBUG:
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             print(torch.min(xyz_, dim=0), torch.max(xyz_, dim=0), sigmas)
             print(weights)
             print(rgb_final, cls_final.shape, clspoints.shape)

@@ -96,7 +96,7 @@ class NeRFSystem(LightningModule):
     def training_step(self, batch, batch_nb):
         log = {'lr': get_learning_rate(self.optimizer)}
         rays, rgbs = self.decode_batch(batch)
-        results = self(rays)
+        results = self(rays) # all pics rays concat
         log['train/loss'] = loss = self.loss(results, rgbs)
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
 
@@ -184,7 +184,9 @@ class NeRF3DSystem(NeRFSystem):
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
 
         with torch.no_grad():
-            psnr_ = psnr(results[f'rgb_{typ}'], rgbs)
+            N, B, c = rgbs.shape
+            pred_rgb = results[f'rgb_{typ}'].reshape(N, B, c)
+            psnr_ = psnr(pred_rgb, rgbs)
             log['train/psnr'] = psnr_
             
 
@@ -240,8 +242,10 @@ class NeRF3DSystem(NeRFSystem):
             stack = torch.stack([img_gt, img, depth]) # (3, 3, H, W)
             self.logger.experiment.add_images('val/GT_pred_depth',
                                                stack, self.global_step)
-
-        log['val_psnr'] = psnr(results[f'rgb_{typ}'], rgbs)
+        B, c = rgbs.shape
+        pred_rgb = results[f'rgb_{typ}'].reshape(B, c)
+        psnr_ = psnr(pred_rgb, rgbs)
+        log['val_psnr'] = psnr_
         log['val_cls_loss'] = loss["cls"]
         log['val_rgb_loss'] = loss["rgb"]
         return log

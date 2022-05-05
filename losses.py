@@ -75,21 +75,22 @@ class MSENLLLoss(nn.Module):
 
         cls_coarse = inputs['cls_coarse'].cuda()
         # ingore non-sample points
+        print(cls_coarse.shape, rgb_target.shape, cls_target.shape, inputs['rgb_coarse'].shape)
         
-        rgb_loss = self.loss(inputs['rgb_coarse'], rgb_target)
+        rgb_loss = self.loss(inputs['rgb_coarse'].reshape(-1,3), rgb_target.reshape(-1,3))
     
         _print_mask = cls_target !=0
-        if DEBUG: print(torch.max(cls_coarse, dim=-1)[1][_print_mask], cls_target[_print_mask], "***")
+        # if DEBUG: print(torch.max(cls_coarse, dim=-1)[1][_print_mask], cls_target[_print_mask], "***")
         # cls_loss = F.nll_loss(cls_coarse[obj_mask], cls_target[obj_mask], reduction='mean')
-        cls_loss = F.nll_loss(cls_coarse, cls_target, reduction='mean')
+        cls_loss = F.nll_loss(cls_coarse, cls_target.reshape(-1), reduction='mean')
 
         if 'rgb_fine' in inputs:
-            rgb_loss += self.loss(inputs['rgb_fine'], rgb_target)
+            rgb_loss += self.loss(inputs['rgb_fine'], rgb_target.reshape(-1,3))
             cls_fine = inputs['cls_fine'].cuda()
             # add obj_mask when rgb fine
             # cls_loss += F.nll_loss(cls_fine[obj_mask], cls_target[obj_mask], reduction='mean')
-            cls_loss += F.nll_loss(cls_fine, cls_target, reduction='mean')
-            if DEBUG: print(torch.max(cls_fine, dim=-1)[1][_print_mask], cls_target[_print_mask], "***", cls_loss)
+            cls_loss += F.nll_loss(cls_fine, cls_target.reshape(-1), reduction='mean')
+            # if DEBUG: print(torch.max(cls_fine, dim=-1)[1][_print_mask], cls_target[_print_mask], "***", cls_loss)
 
         
         loss["rgb"] = rgb_loss * weight
