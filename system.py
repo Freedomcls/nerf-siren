@@ -154,6 +154,7 @@ class NeRF3DSystem(NeRFSystem):
             self.render_fun = render_rays_3d
         elif self.hparams.semantic_network == 'conv3d':
             self.points = MinkUNet14A(in_channels=3, out_channels=_cls)
+            self.points = ME.MinkowskiSyncBatchNorm.convert_sync_batchnorm(self.points)
             self.render_fun = render_rays_3d_conv
         else:
             raise NotImplementedError(self.hparams.semantic_network)

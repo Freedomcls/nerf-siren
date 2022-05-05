@@ -6,7 +6,9 @@ from system import NeRFSystem, NeRF3DSystem, NeRF3DSystem_ib
 # pytorch-lightning
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import Trainer
-from pytorch_lightning.logging import TestTubeLogger
+from pytorch_lightning.loggers import TestTubeLogger
+from pytorch_lightning.plugins import DDPPlugin
+
 
 if __name__ == '__main__':
     hparams = get_opts()
@@ -19,7 +21,7 @@ if __name__ == '__main__':
     else:
         system = NeRFSystem(hparams)
 
-    checkpoint_callback = ModelCheckpoint(filepath=os.path.join(f'ckpts/{hparams.exp_name}',
+    checkpoint_callback = ModelCheckpoint(dirpath=os.path.join(f'ckpts/{hparams.exp_name}',
                                                                 '{epoch:d}'),
                                           monitor='val/loss',
                                           mode='min',
@@ -36,11 +38,11 @@ if __name__ == '__main__':
                       checkpoint_callback=checkpoint_callback,
                       resume_from_checkpoint=hparams.ckpt_path,
                       logger=logger,
-                      early_stop_callback=None,
                       weights_summary=None,
                       progress_bar_refresh_rate=1,
                       gpus=hparams.num_gpus,
                       distributed_backend='ddp' if hparams.num_gpus>1 else None,
+                      plugins=DDPPlugin(find_unused_parameters=True),
                       num_sanity_val_steps=1,
                       benchmark=True,
                       profiler=hparams.num_gpus==1)

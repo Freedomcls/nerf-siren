@@ -61,7 +61,7 @@ def convert_pred(pred, scale=10):
 
 
 class LLFFClsDataset(Dataset):
-    def __init__(self, root_dir, split='train', img_wh=(1920, 1080), spheric_poses=False, val_num=1):
+    def __init__(self, root_dir, split='train', img_wh=(1920, 1080), spheric_poses=False, val_num=1, batch_size=2):
         """
         spheric_poses: whether the images are taken in a spheric inward-facing manner
                        default: False (forward-facing)
@@ -79,6 +79,7 @@ class LLFFClsDataset(Dataset):
 
         self.read_meta()
         self.white_back = False
+        self.batch_size = batch_size
 
     def read_meta(self):
         poses_bounds = np.load(os.path.join(self.root_dir,
