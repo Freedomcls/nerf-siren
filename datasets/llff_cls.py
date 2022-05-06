@@ -51,6 +51,7 @@ def merge_cls():
 
 def convert_pred(pred, scale=10):
     pred = np.array(pred, dtype=np.float)
+    print(pred.shape, pred)
     # print(pred[pred==255])
     ids_map = merge_cls()
     for ids in ids_map:
@@ -151,14 +152,14 @@ class LLFFClsDataset(Dataset):
                 c2w = torch.FloatTensor(self.poses[i])
 
                 img = Image.open(image_path).convert('RGB')
-                # parse_res = Image.open(parse_path).convert('RGB')
+                parse_res = Image.open(parse_path)
 
-                parse_res = cv2.imread(parse_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
-                parse_res = parse_res.T #cv2 load inverse h w
+                # parse_res = cv2.imread(parse_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
+                # parse_res = parse_res.T #cv2 load inverse h w
                 # print(img.size, parse_res.shape)
                 
-                assert list(parse_res.shape[:2]) == list(img.size[:2]),\
-                    f"{parse_res.shape}!={img.size}"
+                assert list(parse_res.size[:2]) == list(img.size[:2]),\
+                    f"{parse_res.size}!={img.size}"
                 
                 assert img.size[1]*self.img_wh[0] == img.size[0]*self.img_wh[1], \
                     f'''{image_path} has different aspect ratio than img_wh, 
@@ -170,18 +171,26 @@ class LLFFClsDataset(Dataset):
                 Check this to know LANZOS sampling:
                 https://gis.stackexchange.com/questions/10931/what-is-lanczos-resampling-useful-for-in-a-spatial-context
                 """
-                parse_res = convert_pred(parse_res)
-                parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]))
+                parse_res = convert_pred(np.asarray(parse_res))
+                parse_res = Image.fromarray(parse_res)
+                parse_res = parse_res.resize(self.img_wh, Image.LANCZOS) 
+
+                # parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]))
                 # print(parse_res.shape)
 
 
                 img = self.transform(img) # (3, h, w)
                 parse_res = self.transform(parse_res)
                 img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
-                parse_res = parse_res.reshape(-1).contiguous() # (h*w, 1) 
+                parse_res = parse_res.reshape(-1, 1).contiguous() # (h*w, 1) 
 
                 # parse_res = parse_res.view(3, -1).permute(1, 0) # (h*w, 3) RGB 
                 # print("train", parse_res.shape, parse_res[parse_res!=0])
+                # print(parse_res.numpy().shape)
+                # cv2.imwrite(f"./debug/parse_{i}.jpg", parse_res.numpy().reshape(self.img_wh[1], self.img_wh[0]))
+                # exit()
+
+
                 self.all_rgbs += [img]
                 self.all_parse  += [parse_res]
                 

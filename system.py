@@ -196,16 +196,18 @@ class NeRF3DSystem(NeRFSystem):
         # save steps results
         if self._vis:
             clss = results[f"cls_{typ}"].reshape(N, B, self._cls)
-            print(clss.shape, rays.shape, rgbs.shape, parse.shape, "vis check")
+            print(clss.shape, rays.shape, rgbs.shape, parse.shape, rays.shape, "vis check")
+
             for i in range(N):
                 each_rgb = pred_rgb[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], -1).detach().cpu().numpy()
                 each_gt_rgb = rgbs[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], -1).detach().cpu().numpy()
                 
                 each_cls = clss[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], self._cls).detach().cpu().numpy()
                 each_cls = np.argmax(each_cls, axis=-1)
+                
                 each_gt_cls = parse[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0]).detach().cpu().numpy()
-                color_cls(each_rgb, each_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"{self.current_epoch}_pred")
-                color_cls(each_gt_rgb, each_gt_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"{self.current_epoch}_gt")            
+                color_cls(each_rgb * 255., each_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_b{i}_pred")
+                color_cls(each_gt_rgb * 255., each_gt_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_b{i}_gt")            
 
         return {'loss': loss["sum"],
                 'progress_bar': {'train_psnr': psnr_ }, 
