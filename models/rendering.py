@@ -485,17 +485,13 @@ def render_rays_3d_conv(models,
         N_samples_ = xyz_.shape[1]
         # Embed directions
         xyz_ = xyz_.view(-1, 3) # (N_rays*N_samples_, 3)
-        # print(xyz_.shape, "xyz")
-
         if not weights_only:
             dir_embedded = torch.repeat_interleave(dir_embedded, repeats=N_samples_, dim=0)
                            # (N_rays*N_samples_, embed_dir_channels)
 
         # Perform model inference to get rgb and raw sigma
         B = xyz_.shape[0]
-        out_chunks = []
-        print(B, chunk, )
-        
+        out_chunks = []        
         for i in range(0, B, chunk):
             # Embed positions by chunk
             xyz_embedded = embedding_xyz(xyz_[i:i+chunk]) # 3 channel encoder to 10
@@ -551,17 +547,22 @@ def render_rays_3d_conv(models,
         clspoints = torch.zeros((N_rays, N_sample, _cls_num)).cuda() # all is background
         # set thresh avoid oom 
         if  test_time:
-            _thresh = 0.001
+            # _thresh = 0
+            _thresh = 0.00001 
         else:
-            _thresh = 0.001
+            _thresh = 0.00001
 
         # sample_weights = weights
         sample_weights = weights
         sample_mask = sample_weights>_thresh
         sample_points = xyz_[sample_mask.reshape(-1)] 
+
+        # print(sample_points[100:200], "11111")
         # normalize 
-        norm_sp = np.linalg.norm(sample_points.detach().cpu().numpy()) # 1.6 not support torch.linalg.norm
-        sample_points = sample_points / norm_sp
+        # norm_sp = np.linalg.norm(sample_points.detach().cpu().numpy()) # 1.6 not support torch.linalg.norm
+        # sample_points = sample_points / norm_sp
+        # print(sample_points[100:200])
+
 
         rgbs_points = rgbs.reshape(-1,3)[sample_mask.reshape(-1)]
         sample_points = torch.cat([sample_points,  rgbs_points], dim=1) # pts, 6,
@@ -585,6 +586,7 @@ def render_rays_3d_conv(models,
             #     device="cuda",
             # )
             # points_preds = points(input)
+            # voxel_size = 0.1 # train use 0.1
             voxel_size = 0.001
             coords = sample_points[:,:3]
             colors = sample_points[:,3:]
@@ -604,15 +606,13 @@ def render_rays_3d_conv(models,
             # get the prediction on the input tensor field
             out_field = soutput.slice(in_field)
             points_preds = out_field.F
-            #print('out pred', points_preds.shape)
-            points_preds = F.log_softmax(points_preds,dim=-1)
-            #print('out pred', points_preds.shape)
+            # points_preds = F.log_softmax(points_preds,dim=-1)
+            # points_preds = F.softmax(points_preds,dim=-1)
 
-        # points_preds = F.log_softmax(points_preds, dim=1)
         clspoints[sample_mask] = points_preds # N rays, N_sample, cls
-        
         # orginal rgb ways, use sum
         cls_final = torch.sum(weights.unsqueeze(-1)*clspoints, -2) # N_rays, cls
+        cls_final = F.log_softmax(cls_final, dim=-1)
 
         # compute final weighted outputs
         rgb_final = torch.sum(weights.unsqueeze(-1)*rgbs, -2) # (N_rays, 3)

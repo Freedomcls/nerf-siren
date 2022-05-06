@@ -10,7 +10,7 @@ def get_opts():
                         type=str, choices=['d3', 'd3_ib', 'normal'],
                         help='use which system')
     parser.add_argument('--dataset_name', type=str, default='blender',
-                        choices=['blender', 'llff', "llff_cls", "llff_cls_ib"], # ib mens batch as img
+                        choices=['blender', 'blender_cls_ib', 'llff', "llff_cls", "llff_cls_ib"], # ib mens batch as img
                         help='which dataset to train/val')
     parser.add_argument('-sn', '--semantic_network', type=str, default='pointnet',
                         choices=['pointnet', 'conv3d'], 

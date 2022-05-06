@@ -180,6 +180,7 @@ class NeRF3DSystem(NeRFSystem):
         rays, rgbs, parse = self.decode_batch(batch)
         
         results = self(rays)
+        print(rays.shape, rgbs.shape, parse.shape)
         loss = self.loss(results, rgbs, parse)
         log['train/total_loss'] = loss["sum"]
         log['train/rgb_loss'] = loss["rgb"]
@@ -196,16 +197,18 @@ class NeRF3DSystem(NeRFSystem):
         # save steps results
         if self._vis:
             clss = results[f"cls_{typ}"].reshape(N, B, self._cls)
-            print(clss.shape, rays.shape, rgbs.shape, parse.shape, "vis check")
+            # print(clss.shape, rays.shape, rgbs.shape, parse.shape, rays.shape, "vis check")
+
             for i in range(N):
                 each_rgb = pred_rgb[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], -1).detach().cpu().numpy()
                 each_gt_rgb = rgbs[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], -1).detach().cpu().numpy()
                 
                 each_cls = clss[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], self._cls).detach().cpu().numpy()
                 each_cls = np.argmax(each_cls, axis=-1)
+                
                 each_gt_cls = parse[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0]).detach().cpu().numpy()
-                color_cls(each_rgb, each_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"{self.current_epoch}_pred")
-                color_cls(each_gt_rgb, each_gt_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"{self.current_epoch}_gt")            
+                color_cls(each_rgb * 255., each_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_b{i}_pred")
+                color_cls(each_gt_rgb * 255., each_gt_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_b{i}_gt")            
 
         return {'loss': loss["sum"],
                 'progress_bar': {'train_psnr': psnr_ }, 
@@ -243,32 +246,44 @@ class NeRF3DSystem(NeRFSystem):
         return results
 
     def validation_step(self, batch, batch_nb):
-        rays, rgbs, parse = self.decode_batch(batch)
-        rays = rays.squeeze() # (H*W, 3)
-        rgbs = rgbs.squeeze() # (H*W, 3)
-        parse = parse.squeeze() # (H*W, CLS)
-        results = self(rays)
-        loss = self.loss(results, rgbs, parse)
-        log = {'val_loss': loss["sum"]}
-        typ = 'fine' if 'rgb_fine' in results else 'coarse'
+        pass
+        # rays, rgbs, parse = self.decode_batch(batch)
+        # rays = rays.squeeze() # (H*W, 3)
+        # rgbs = rgbs.squeeze() # (H*W, 3)
+        # parse = parse.squeeze() # (H*W, CLS)
+        # results = self(rays)
+        # loss = self.loss(results, rgbs, parse)
+        # log = {'val_loss': loss["sum"]}
+        # typ = 'fine' if 'rgb_fine' in results else 'coarse'
     
-        if batch_nb == 0:
-            W, H = self.hparams.img_wh
-            img = results[f'rgb_{typ}'].view(H, W, 3).cpu()
-            img = img.permute(2, 0, 1) # (3, H, W)
-            img_gt = rgbs.view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
-            depth = visualize_depth(results[f'depth_{typ}'].view(H, W)) # (3, H, W)
-            stack = torch.stack([img_gt, img, depth]) # (3, 3, H, W)
-            self.logger.experiment.add_images('val/GT_pred_depth',
-                                               stack, self.global_step)
-        B, c = rgbs.shape
-        pred_rgb = results[f'rgb_{typ}'].reshape(B, c)
-        psnr_ = psnr(pred_rgb, rgbs)
-        log['val_psnr'] = psnr_
-        log['val_cls_loss'] = loss["cls"]
-        log['val_rgb_loss'] = loss["rgb"]
-        return log
+        # if batch_nb == 0:
+        #     W, H = self.hparams.img_wh
+        #     img = results[f'rgb_{typ}'].view(H, W, 3).cpu()
+        #     img = img.permute(2, 0, 1) # (3, H, W)
+        #     img_gt = rgbs.view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
+        #     depth = visualize_depth(results[f'depth_{typ}'].view(H, W)) # (3, H, W)
+        #     stack = torch.stack([img_gt, img, depth]) # (3, 3, H, W)
+        #     self.logger.experiment.add_images('val/GT_pred_depth',
+        #                                        stack, self.global_step)
+        # B, c = rgbs.shape
+        # pred_rgb = results[f'rgb_{typ}'].reshape(B, c)
+        # psnr_ = psnr(pred_rgb, rgbs)
+        # log['val_psnr'] = psnr_
+        # log['val_cls_loss'] = loss["cls"]
+        # log['val_rgb_loss'] = loss["rgb"]
+        # return log
+        return {"val_loss": 0}
 
+
+    def validation_epoch_end(self, outputs):
+        # mean_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        # mean_psnr = torch.stack([x['val_psnr'] for x in outputs]).mean()
+
+        return {'progress_bar': {'val_loss': 0,
+                                'val_psnr': 0},
+                'log': {'val/loss': 0,
+                        'val/psnr': 0}
+            }
 
 
 class NeRF3DSystem_ib(NeRF3DSystem):

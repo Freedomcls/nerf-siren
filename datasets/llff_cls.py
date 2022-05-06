@@ -51,6 +51,7 @@ def merge_cls():
 
 def convert_pred(pred, scale=10):
     pred = np.array(pred, dtype=np.float)
+    print(pred.shape, pred)
     # print(pred[pred==255])
     ids_map = merge_cls()
     for ids in ids_map:
@@ -112,7 +113,7 @@ class LLFFClsDataset(Dataset):
         # See https://github.com/bmild/nerf/issues/34
         poses = np.concatenate([poses[..., 1:2], -poses[..., :1], poses[..., 2:4]], -1)
                 # (N_images, 3, 4) exclude H, W, focal
-        self.poses, self.pose_avg = center_poses(poses)
+        self.poses, self.pose_avg = center_poses(poses) # pose的点是normalize过的
         distances_from_center = np.linalg.norm(self.poses[..., 3], axis=1)
         val_idx = np.argmin(distances_from_center) # choose val image as the closest to
                                                    # center image
@@ -124,11 +125,20 @@ class LLFFClsDataset(Dataset):
                                           # the nearest depth is at 1/0.75=1.33
         self.bounds /= scale_factor
         self.poses[..., 3] /= scale_factor
-
+        
         # ray directions for all pixels, same for all images (same H, W, focal)
         self.directions = \
             get_ray_directions(self.img_wh[1], self.img_wh[0], self.focal) # (H, W, 3)
-            
+        
+        # post-process pose
+        self._poses = []
+        for i, image_path in enumerate(self.image_paths):
+            ids = int(image_path.split("/")[-1].split(".")[0].split("_")[-1])
+            if ids not in self.edited_ids:
+                continue 
+            self._poses.append(np.expand_dims(self.poses[i], 0))
+        self._poses = np.concatenate(self._poses, axis=0)
+        
         if self.split == 'train': # create buffer of all rays and rgb data
                                   # use first N_images-1 to train, the LAST is val
             self.all_rays = []
@@ -151,14 +161,14 @@ class LLFFClsDataset(Dataset):
                 c2w = torch.FloatTensor(self.poses[i])
 
                 img = Image.open(image_path).convert('RGB')
-                # parse_res = Image.open(parse_path).convert('RGB')
+                parse_res = Image.open(parse_path)
 
-                parse_res = cv2.imread(parse_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
-                parse_res = parse_res.T #cv2 load inverse h w
+                # parse_res = cv2.imread(parse_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
+                # parse_res = parse_res.T #cv2 load inverse h w
                 # print(img.size, parse_res.shape)
                 
-                assert list(parse_res.shape[:2]) == list(img.size[:2]),\
-                    f"{parse_res.shape}!={img.size}"
+                assert list(parse_res.size[:2]) == list(img.size[:2]),\
+                    f"{parse_res.size}!={img.size}"
                 
                 assert img.size[1]*self.img_wh[0] == img.size[0]*self.img_wh[1], \
                     f'''{image_path} has different aspect ratio than img_wh, 
@@ -170,18 +180,26 @@ class LLFFClsDataset(Dataset):
                 Check this to know LANZOS sampling:
                 https://gis.stackexchange.com/questions/10931/what-is-lanczos-resampling-useful-for-in-a-spatial-context
                 """
-                parse_res = convert_pred(parse_res)
-                parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]))
+                parse_res = convert_pred(np.asarray(parse_res))
+                parse_res = Image.fromarray(parse_res)
+                parse_res = parse_res.resize(self.img_wh, Image.LANCZOS) 
+
+                # parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]))
                 # print(parse_res.shape)
 
 
                 img = self.transform(img) # (3, h, w)
                 parse_res = self.transform(parse_res)
                 img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
-                parse_res = parse_res.reshape(-1).contiguous() # (h*w, 1) 
+                parse_res = parse_res.reshape(-1, 1).contiguous() # (h*w, 1) 
 
                 # parse_res = parse_res.view(3, -1).permute(1, 0) # (h*w, 3) RGB 
                 # print("train", parse_res.shape, parse_res[parse_res!=0])
+                # print(parse_res.numpy().shape)
+                # cv2.imwrite(f"./debug/parse_{i}.jpg", parse_res.numpy().reshape(self.img_wh[1], self.img_wh[0]))
+                # exit()
+
+
                 self.all_rgbs += [img]
                 self.all_parse  += [parse_res]
                 
@@ -218,11 +236,12 @@ class LLFFClsDataset(Dataset):
             if self.split.endswith('train'): # test on training set
                 self.poses_test = self.poses
             elif not self.spheric_poses:
-                focus_depth = 3.5 # hardcoded, this is numerically close to the formula
+                focus_depth = 3.5   # hardcoded, this is numerically close to the formula
                                   # given in the original repo. Mathematically if near=1
                                   # and far=infinity, then this number will converge to 4
-                radii = np.percentile(np.abs(self.poses[..., 3]), 90, axis=0)
-                self.poses_test = create_spiral_poses(radii, focus_depth)
+                radii = np.percentile(np.abs(self.poses[..., 3]), 90, axis=0) # 卡所有的pose的百分位数
+                self.poses_test = create_spiral_poses(radii, focus_depth, n_poses=60) # Nx3x4
+                
             else:
                 radius = 1.1 * self.bounds.min()
                 self.poses_test = create_spheric_poses(radius)
@@ -259,6 +278,7 @@ class LLFFClsDataset(Dataset):
                 near, far = 0, 1
                 rays_o, rays_d = get_ndc_rays(self.img_wh[1], self.img_wh[0],
                                               self.focal, 1.0, rays_o, rays_d)
+                                            #   self.focal, 2.0, rays_o, rays_d)
             else:
                 near = self.bounds.min()
                 far = min(8 * near, self.bounds.max())
@@ -329,7 +349,7 @@ class LLFFClsDatasetImgBatch(LLFFClsDataset):
                               near*torch.ones_like(rays_o[:, :1]),
                               far*torch.ones_like(rays_o[:, :1])],
                               1) # (h*w, 8)
-
+            
             sample = {'rays': rays,
                       'c2w': c2w}
 

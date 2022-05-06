@@ -25,38 +25,36 @@ class MSECELoss(nn.Module):
         self.mse = nn.MSELoss(reduction='mean')
         self.ce = nn.CrossEntropyLoss(reduction="mean", ignore_index=-1)
     
-    def forward(self, inputs, mse_target, ce_target, weight=0.6):
-        ce_target = ce_target.squeeze()
-        # ? ingore background ce loss, should we sampling some negative rays ?
+    def forward(self, inputs, rgb_target, cls_target, weight=0.):
+        cls_target = cls_target.squeeze()
         loss = {}
         mse_wg = weight
         ce_wg = 1 - weight
-        mse_loss = self.mse(inputs['rgb_coarse'], mse_target)
-        ce_target = ce_target.to(torch.long)
-        obj_mask = (ce_target != 0 ).to(dtype=torch.long, device=ce_target.device)
+        # mse_loss = self.mse
+        mse_loss = self.mse(inputs['rgb_coarse'].reshape(-1,3), rgb_target.reshape(-1,3))
+
+        cls_target = cls_target.to(torch.long).reshape(-1)
+        obj_mask = (cls_target != 0 ).to(dtype=torch.long, device=cls_target.device)
+        print(inputs['cls_coarse'].shape, cls_target.shape, "loss")
 
         if DEBUG:
-            print(inputs['cls_coarse'].shape, ce_target.shape, "loss")
+            print(inputs['cls_coarse'].shape, cls_target.shape, "loss")
             pred_res = torch.max(inputs['cls_coarse'], axis=-1)
-            print(pred_res , ce_target)
+            print(pred_res , cls_target)
             print(obj_mask.sum())
-        # ce_loss = self.ce(inputs['cls_coarse'][obj_mask], ce_target[obj_mask])
-        # 加不加mask, cls_fine的结果基本都是 0 
-        ce_loss = self.ce(inputs['cls_coarse'], ce_target)
 
+        ce_loss = self.ce(inputs['cls_coarse'], cls_target)
         if "rgb_fine" in inputs:
-            mse_loss += self.mse(inputs['rgb_fine'], mse_target)
-            ce_loss += self.ce(inputs['cls_fine'], ce_target)
-            print(list(set(torch.argmax(inputs['cls_fine'], dim=-1).detach().cpu().numpy().tolist())), 
-                "loss")
-            # ce_loss += self.ce(inputs['cls_fine'][obj_mask], ce_target[obj_mask])
+            mse_loss += self.mse(inputs['rgb_fine'], rgb_target)
+            ce_loss += self.ce(inputs['cls_fine'], cls_target)
 
         mse_loss *= mse_wg
         ce_loss *= ce_wg
-
         loss["sum"] = mse_loss + ce_loss
         loss["rgb"] = mse_loss
         loss["cls"] = ce_loss
+
+        print(ce_loss)
         return loss
 
 
@@ -75,7 +73,7 @@ class MSENLLLoss(nn.Module):
 
         cls_coarse = inputs['cls_coarse'].cuda()
         # ingore non-sample points
-        print(cls_coarse.shape, rgb_target.shape, cls_target.shape, inputs['rgb_coarse'].shape)
+        # print(cls_coarse.shape, rgb_target.shape, cls_target.shape, inputs['rgb_coarse'].shape)
         
         rgb_loss = self.loss(inputs['rgb_coarse'].reshape(-1,3), rgb_target.reshape(-1,3))
     

@@ -75,7 +75,7 @@ def batched_inference(models, embeddings,
                       ):
     """Do batched inference on rays using chunk."""
     B = rays.shape[0]
-    chunk = B  # hard code 
+    chunk = 1024*32 # hard code 
     results = defaultdict(list)
     for i in range(0, B, chunk):
         # print(rays[i:i+chunk].shape, B)
@@ -154,7 +154,7 @@ if __name__ == "__main__":
                                     args.N_samples, args.N_importance, args.use_disp,
                                     args.chunk,
                                     dataset.white_back,
-                                    render_func,
+                                    render_func=render_func,
                                     _cls_num=_cls,
                                     network=args.semantic_network,
                                     )
