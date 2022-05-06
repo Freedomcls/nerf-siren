@@ -22,7 +22,7 @@ def merge_cls():
     new_atts = ['skin', 'face', 'face', 'face', 'face', 'face', 'head', 'head', 'head', 
             'face', 'face', 'face', 'face',  'neck',  'cloth', 'cloth', 'head', 'head']
     
-
+    # face 表示五官， nose lip eys .etc
     new_map = {
         'skin':1, 
         'face':2, 
@@ -305,6 +305,7 @@ class LLFFClsDatasetImgBatch(LLFFClsDataset):
     def __getitem__(self, idx):
         if self.split == 'train':
             h, w = self.img_wh[1], self.img_wh[0]
+            
             sample = {'rays': self.all_rays[idx*h*w:(idx+1)*h*w],
                       'rgbs': self.all_rgbs[idx*h*w:(idx+1)*h*w],
                       'parse': self.all_parse[idx*h*w:(idx+1)*h*w],

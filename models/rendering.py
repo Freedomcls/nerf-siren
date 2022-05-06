@@ -494,7 +494,7 @@ def render_rays_3d_conv(models,
         # Perform model inference to get rgb and raw sigma
         B = xyz_.shape[0]
         out_chunks = []
-        # print(B, chunk, len(range(0, B, chunk)))
+        print(B, chunk, )
         
         for i in range(0, B, chunk):
             # Embed positions by chunk
@@ -551,9 +551,9 @@ def render_rays_3d_conv(models,
         clspoints = torch.zeros((N_rays, N_sample, _cls_num)).cuda() # all is background
         # set thresh avoid oom 
         if  test_time:
-            _thresh = 0.1
+            _thresh = 0.001
         else:
-            _thresh = 0.1
+            _thresh = 0.001
 
         # sample_weights = weights
         sample_weights = weights

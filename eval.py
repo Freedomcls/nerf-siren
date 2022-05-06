@@ -70,7 +70,9 @@ def batched_inference(models, embeddings,
                       rays, N_samples, N_importance, use_disp,
                       chunk,
                       white_back,
-                      render_func,):
+                      render_func,
+                      **kwargs,
+                      ):
     """Do batched inference on rays using chunk."""
     B = rays.shape[0]
     chunk = B  # hard code 
@@ -88,7 +90,8 @@ def batched_inference(models, embeddings,
                         N_importance,
                         chunk,
                         dataset.white_back,
-                        test_time=True)
+                        test_time=True,
+                        **kwargs)
 
         for k, v in rendered_ray_chunks.items():
             results[k] += [v]
@@ -101,7 +104,7 @@ def batched_inference(models, embeddings,
 if __name__ == "__main__":
     args = get_opts()
     w, h = args.img_wh
-    _cls = 11
+    _cls = 6 # hard code
 
     kwargs = {'root_dir': args.root_dir,
               'split': args.split,
@@ -152,6 +155,8 @@ if __name__ == "__main__":
                                     args.chunk,
                                     dataset.white_back,
                                     render_func,
+                                    _cls_num=_cls,
+                                    network=args.semantic_network,
                                     )
         img_pred = results['rgb_fine'].view(h, w, 3).cpu().numpy()
         if "d3" in args.mode:

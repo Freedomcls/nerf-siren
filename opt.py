@@ -7,7 +7,7 @@ def get_opts():
                         default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
                         help='root directory of dataset')
     parser.add_argument('--mode', default="normal",
-                        type=str, choices=['d3', 'd3_ib'],
+                        type=str, choices=['d3', 'd3_ib', 'normal'],
                         help='use which system')
     parser.add_argument('--dataset_name', type=str, default='blender',
                         choices=['blender', 'llff', "llff_cls", "llff_cls_ib"], # ib mens batch as img

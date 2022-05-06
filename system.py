@@ -148,13 +148,16 @@ class NeRF3DSystem(NeRFSystem):
         # self.embedding_xyz = Embedding(3, 10) # 10 is the default number
         # self.embedding_dir = Embedding(3, 4) # 4 is the default number
         # self.embeddings = [self.embedding_xyz, self.embedding_dir]
-        _cls = 11
+        _cls = 6
+        self._cls = _cls
+        self._vis = True
         if self.hparams.semantic_network == 'pointnet':
             self.points = PointNetDenseCls(k=_cls, inc=6) # add rgb
             self.render_fun = render_rays_3d
         elif self.hparams.semantic_network == 'conv3d':
             self.points = MinkUNet14A(in_channels=3, out_channels=_cls)
             self.points = ME.MinkowskiSyncBatchNorm.convert_sync_batchnorm(self.points)
+            # print(self.points)
             self.render_fun = render_rays_3d_conv
         else:
             raise NotImplementedError(self.hparams.semantic_network)
@@ -175,6 +178,7 @@ class NeRF3DSystem(NeRFSystem):
     def training_step(self, batch, batch_nb):
         log = {'lr': get_learning_rate(self.optimizer)}
         rays, rgbs, parse = self.decode_batch(batch)
+        
         results = self(rays)
         loss = self.loss(results, rgbs, parse)
         log['train/total_loss'] = loss["sum"]
@@ -188,7 +192,20 @@ class NeRF3DSystem(NeRFSystem):
             pred_rgb = results[f'rgb_{typ}'].reshape(N, B, c)
             psnr_ = psnr(pred_rgb, rgbs)
             log['train/psnr'] = psnr_
-            
+
+        # save steps results
+        if self._vis:
+            clss = results[f"cls_{typ}"].reshape(N, B, self._cls)
+            print(clss.shape, rays.shape, rgbs.shape, parse.shape, "vis check")
+            for i in range(N):
+                each_rgb = pred_rgb[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], -1).detach().cpu().numpy()
+                each_gt_rgb = rgbs[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], -1).detach().cpu().numpy()
+                
+                each_cls = clss[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], self._cls).detach().cpu().numpy()
+                each_cls = np.argmax(each_cls, axis=-1)
+                each_gt_cls = parse[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0]).detach().cpu().numpy()
+                color_cls(each_rgb, each_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"{self.current_epoch}_pred")
+                color_cls(each_gt_rgb, each_gt_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"{self.current_epoch}_gt")            
 
         return {'loss': loss["sum"],
                 'progress_bar': {'train_psnr': psnr_ }, 
@@ -214,7 +231,9 @@ class NeRF3DSystem(NeRFSystem):
                             self.hparams.N_importance,
                             self.hparams.chunk, # chunk size is effective in val mode
                             self.train_dataset.white_back,
-                            network=self.hparams.semantic_network)
+                            network=self.hparams.semantic_network,
+                            _cls_num=self._cls,
+                            )
 
             for k, v in rendered_ray_chunks.items():
                 results[k] += [v]
@@ -276,7 +295,10 @@ class NeRF3DSystem_ib(NeRF3DSystem):
                             self.hparams.noise_std,
                             self.hparams.N_importance,
                             self.hparams.chunk, # chunk size is effective in val mode
-                            self.train_dataset.white_back)
+                            self.train_dataset.white_back,
+                            network=self.hparams.semantic_network,
+                            _cls_num=self._cls,
+                            )
 
             for k, v in rendered_ray_chunks.items():
                 results[k] += [v]
