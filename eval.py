@@ -6,10 +6,12 @@ from tqdm import tqdm
 import imageio
 from argparse import ArgumentParser
 
-from models.rendering import render_rays, render_rays_3d
+from models.rendering import render_rays, render_rays_3d, render_rays_3d_conv
 from models.nerf import *
 from models.nerf_cls import NeRF_3D
 from models.pointnets import PointNetDenseCls
+from models.ConvNetWork import *
+
 from utils import load_ckpt, color_cls
 import metrics
 
@@ -21,15 +23,18 @@ DEBUG = eval(os.environ.get("DEBUG", "False"))
 
 def get_opts():
     parser = ArgumentParser()
-    parser.add_argument('--d3', default=False,
-                        action="store_true",
-                        help='whether to use 3d nerf')
+    parser.add_argument('--mode', default="normal",
+                        type=str, choices=['d3', 'd3_ib', 'normal'],
+                        help='use which system')
     parser.add_argument('--root_dir', type=str,
                         default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
                         help='root directory of dataset')
     parser.add_argument('--dataset_name', type=str, default='blender',
                         choices=['blender', 'llff', "llff_cls", "llff_cls_ib"],
                         help='which dataset to validate')
+    parser.add_argument('-sn', '--semantic_network', type=str, default='pointnet',
+                        choices=['pointnet', 'conv3d'], 
+                        help='use which network to extract semantic features')
     parser.add_argument('--scene_name', type=str, default='test',
                         help='scene name, used as output folder name')
     parser.add_argument('--split', type=str, default='test',
@@ -65,12 +70,11 @@ def batched_inference(models, embeddings,
                       rays, N_samples, N_importance, use_disp,
                       chunk,
                       white_back,
-                      d3,):
+                      render_func,):
     """Do batched inference on rays using chunk."""
     B = rays.shape[0]
     chunk = B  # hard code 
     results = defaultdict(list)
-    render_func = render_rays_3d if d3 else render_rays
     for i in range(0, B, chunk):
         # print(rays[i:i+chunk].shape, B)
         rendered_ray_chunks = \
@@ -97,7 +101,7 @@ def batched_inference(models, embeddings,
 if __name__ == "__main__":
     args = get_opts()
     w, h = args.img_wh
-    _cls = 6
+    _cls = 11
 
     kwargs = {'root_dir': args.root_dir,
               'split': args.split,
@@ -110,7 +114,12 @@ if __name__ == "__main__":
     embedding_dir = Embedding(3, 4)
     nerf_coarse = NeRF()
     nerf_fine = NeRF()
-    points = PointNetDenseCls(k=_cls, inc=6)
+    if args.semantic_network == "pointnet":
+        points = PointNetDenseCls(k=_cls, inc=6)
+    elif args.semantic_network == "conv3d":
+        points = MinkUNet14A(in_channels=3, out_channels=_cls)
+        points = ME.MinkowskiSyncBatchNorm.convert_sync_batchnorm(points)
+
 
     load_ckpt(nerf_coarse, args.ckpt_path, model_name='nerf_coarse')
     load_ckpt(nerf_fine, args.ckpt_path, model_name='nerf_fine')
@@ -127,6 +136,13 @@ if __name__ == "__main__":
     psnrs = []
     dir_name = f'results/{args.dataset_name}/{args.scene_name}'
     os.makedirs(dir_name, exist_ok=True)
+    if args.mode == "normal":
+        render_func = render_rays
+    elif "d3" in args.mode:
+        if args.semantic_network == "pointnet":
+            render_func = render_rays_3d
+        elif args.semantic_network == "conv3d":
+            render_func = render_rays_3d_conv
 
     for i in tqdm(range(len(dataset))):
         sample = dataset[i]
@@ -135,12 +151,10 @@ if __name__ == "__main__":
                                     args.N_samples, args.N_importance, args.use_disp,
                                     args.chunk,
                                     dataset.white_back,
-                                    args.d3)
-
+                                    render_func,
+                                    )
         img_pred = results['rgb_fine'].view(h, w, 3).cpu().numpy()
-        # add 3d cls
-
-        if args.d3:
+        if "d3" in args.mode:
             cls_num = _cls
             raw_cls_pred = results["cls_fine"].view(h, w, cls_num).cpu().numpy()
             cls_pred = np.argmax(raw_cls_pred, axis=-1)
