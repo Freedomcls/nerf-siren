@@ -9,8 +9,9 @@ from torchvision import transforms as T
 from .ray_utils import *
 from .llff import normalize, average_poses, center_poses, create_spiral_poses, create_spheric_poses
 import cv2
+import ast
 
-DEBUG = os.environ.get("DEBUG", False)
+DEBUG = ast.literal_eval(os.environ.get("DEBUG", "False"))
 
 def merge_cls():
     # cls_map: parse results
