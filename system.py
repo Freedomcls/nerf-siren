@@ -197,8 +197,6 @@ class NeRF3DSystem(NeRFSystem):
         # save steps results
         if self._vis:
             clss = results[f"cls_{typ}"].reshape(N, B, self._cls)
-            # print(clss.shape, rays.shape, rgbs.shape, parse.shape, rays.shape, "vis check")
-
             for i in range(N):
                 each_rgb = pred_rgb[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], -1).detach().cpu().numpy()
                 each_gt_rgb = rgbs[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], -1).detach().cpu().numpy()
