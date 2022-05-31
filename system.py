@@ -180,7 +180,7 @@ class NeRF3DSystem(NeRFSystem):
         rays, rgbs, parse = self.decode_batch(batch)
         
         results = self(rays)
-        print(rays.shape, rgbs.shape, parse.shape)
+        # print(rays.shape, rgbs.shape, parse.shape)
         loss = self.loss(results, rgbs, parse)
         log['train/total_loss'] = loss["sum"]
         log['train/rgb_loss'] = loss["rgb"]

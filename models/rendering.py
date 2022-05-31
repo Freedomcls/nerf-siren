@@ -587,7 +587,7 @@ def render_rays_3d_conv(models,
             # )
             # points_preds = points(input)
             # voxel_size = 0.1 # train use 0.1
-            voxel_size = 0.001
+            voxel_size = 0.1
             coords = sample_points[:,:3]
             colors = sample_points[:,3:]
             in_field = ME.TensorField(

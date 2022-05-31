@@ -20,7 +20,7 @@ def color_cls(img, pred_map, savedir, prefix="", color_legend=True):
     vis_pred = cv2.resize(vis_pred, None, fx=1, fy=1, interpolation=cv2.INTER_NEAREST)
     vis_pred_color = np.zeros((vis_pred.shape[0], vis_pred.shape[1], 3)) 
     num_cls = np.max(vis_pred) 
-    print(num_cls)
+    # print(num_cls)
     for i in range(1, num_cls+1):
         index = np.where(vis_pred==i)
         # print(i, index, vis_pred)

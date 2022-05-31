@@ -51,7 +51,7 @@ def merge_cls():
 
 def convert_pred(pred, scale=10):
     pred = np.array(pred, dtype=np.float)
-    print(pred.shape, pred)
+    # print(pred.shape, pred)
     # print(pred[pred==255])
     ids_map = merge_cls()
     for ids in ids_map:
