@@ -72,7 +72,7 @@ def extract_model_state_dict(ckpt_path, model_name='model', prefixes_to_ignore=[
 
 def load_ckpt(model, ckpt_path, model_name='model', prefixes_to_ignore=[]):
     try:
-        print(model_name, model)
+        # print(model_name, model)
         model_dict = model.state_dict()
         checkpoint_ = extract_model_state_dict(ckpt_path, model_name, prefixes_to_ignore)
         model_dict.update(checkpoint_)

@@ -10,8 +10,8 @@ from .ray_utils import *
 from .llff import normalize, average_poses, center_poses, create_spiral_poses, create_spheric_poses
 import cv2
 
-DEBUG = os.environ.get("DEBUG", False)
-
+# DEBUG = os.environ.get("DEBUG", False)
+DEBUG = False
 def merge_cls():
     # cls_map: parse results
     atts =   ['skin', 'l_brow', 'r_brow', 'l_eye', 'r_eye', 'eye_g', 'l_ear', 'r_ear', 'ear_r',
@@ -181,8 +181,10 @@ class LLFFClsDataset(Dataset):
                 https://gis.stackexchange.com/questions/10931/what-is-lanczos-resampling-useful-for-in-a-spatial-context
                 """
                 parse_res = convert_pred(np.asarray(parse_res))
+                #print(np.max(parse_res))
+                parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]),interpolation=cv2.INTER_NEAREST) 
                 parse_res = Image.fromarray(parse_res)
-                parse_res = parse_res.resize(self.img_wh, Image.LANCZOS) 
+                # parse_res = parse_res.resize(self.img_wh, Image.LANCZOS) 
 
                 # parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]))
                 # print(parse_res.shape)
@@ -192,7 +194,7 @@ class LLFFClsDataset(Dataset):
                 parse_res = self.transform(parse_res)
                 img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
                 parse_res = parse_res.reshape(-1, 1).contiguous() # (h*w, 1) 
-
+                #print(torch.max(parse_res))
                 # parse_res = parse_res.view(3, -1).permute(1, 0) # (h*w, 3) RGB 
                 # print("train", parse_res.shape, parse_res[parse_res!=0])
                 # print(parse_res.numpy().shape)

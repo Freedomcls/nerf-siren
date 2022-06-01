@@ -5,8 +5,8 @@ from .pointnets  import PointNetDenseCls
 from .ConvNetWork import *
 import os
 
-DEBUG = os.environ.get("DEBUG", False)
-
+# DEBUG = os.environ.get("DEBUG", False)
+DEBUG = False
 class NeRF_3D(nn.Module):
     def __init__(self,
                  D=8, W=256, CLS=3,

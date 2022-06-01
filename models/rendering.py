@@ -6,7 +6,8 @@ import numpy as np
 from .ConvNetWork import Voxelizer
 import MinkowskiEngine as ME
 
-DEBUG = os.environ.get("DEBUG", False)
+# DEBUG = os.environ.get("DEBUG", False)
+DEBUG = False
 
 __all__ = ['render_rays', "render_rays_3d"]
 
@@ -542,23 +543,39 @@ def render_rays_3d_conv(models,
         if weights_only:
             return weights
 
+        # compute final weighted outputs
+        rgb_final = torch.sum(weights.unsqueeze(-1)*rgbs, -2) # (N_rays, 3)
+        #  sum N_samples rgb results
+        if DEBUG:
+            # import ipdb; ipdb.set_trace()
+            print(torch.min(xyz_, dim=0), torch.max(xyz_, dim=0), sigmas)
+            print(weights)
+            print(rgb_final, cls_final.shape, clspoints.shape)
+            print(torch.argmax(clspoints, dim=-1))
+            print(cls_final)
+
+        depth_final = torch.sum(weights*z_vals, -1) # (N_rays)
+        if white_back:
+            rgb_final = rgb_final + 1-weights_sum.unsqueeze(-1)
+
+        ################### cls #################
         # use weight to sample xyz
         N_sample = weights.shape[1]
         clspoints = torch.zeros((N_rays, N_sample, _cls_num)).cuda() # all is background
-        # set thresh avoid oom 
+        # set thresh avoid oom
         if  test_time:
             # _thresh = 0
-            _thresh = 0.00001 
+            _thresh = 0.00001
         else:
             _thresh = 0.00001
 
         # sample_weights = weights
         sample_weights = weights
         sample_mask = sample_weights>_thresh
-        sample_points = xyz_[sample_mask.reshape(-1)] 
+        sample_points = xyz_[sample_mask.reshape(-1)]
 
         # print(sample_points[100:200], "11111")
-        # normalize 
+        # normalize
         # norm_sp = np.linalg.norm(sample_points.detach().cpu().numpy()) # 1.6 not support torch.linalg.norm
         # sample_points = sample_points / norm_sp
         # print(sample_points[100:200])
@@ -566,8 +583,9 @@ def render_rays_3d_conv(models,
 
         rgbs_points = rgbs.reshape(-1,3)[sample_mask.reshape(-1)]
         sample_points = torch.cat([sample_points,  rgbs_points], dim=1) # pts, 6,
-
-        if network == 'pointnet':
+        if sample_points.shape[0] < 3200:
+            points_preds = torch.zeros(sample_points.shape[0]).cuda()
+        elif network == 'pointnet':
             sample_points = sample_points.transpose(1, 0) # 6, pts
             sample_points = torch.unsqueeze(sample_points, 0) # 1, 6, pts
             sample_points = sample_points.contiguous()
@@ -578,7 +596,7 @@ def render_rays_3d_conv(models,
             # sample_points_coords = sample_points[:,:3].detach().cpu()
             # sample_points_features = sample_points[:,3:]
             # sample_points_coords, inds, _ = voxelizer.voxelize(sample_points_coords)
-            # sample_points_coords = torch.cat((torch.zeros(sample_points_coords.shape[0]).unsqueeze(1),sample_points_coords),1) # (n, (b,x,y,z))
+            # sample_points_coords = torch.cat((torch.zeros(sample_points_coords.shape[0]).unsqueeze(1),sample_points_coords),1) # (n, (batch,x,y,z)) batch always 0
             # sample_points_features = sample_points_features[inds] # (n, (r,g,b))
             # input = ME.TensorField(
             #     coordinates=sample_points_coords,
@@ -592,7 +610,7 @@ def render_rays_3d_conv(models,
             colors = sample_points[:,3:]
             in_field = ME.TensorField(
                 features=colors,
-                coordinates=ME.utils.batched_coordinates([coords / voxel_size], dtype=torch.float32),
+                coordinates=ME.utils.batched_coordinates([coords / voxel_size], dtype=torch.float32),  # (n, 4) dim 0 represents bs_id
                 quantization_mode=ME.SparseTensorQuantizationMode.UNWEIGHTED_AVERAGE,
                 minkowski_algorithm=ME.MinkowskiAlgorithm.SPEED_OPTIMIZED,
                 device="cuda",
@@ -613,21 +631,7 @@ def render_rays_3d_conv(models,
         # orginal rgb ways, use sum
         cls_final = torch.sum(weights.unsqueeze(-1)*clspoints, -2) # N_rays, cls
         cls_final = F.log_softmax(cls_final, dim=-1)
-
-        # compute final weighted outputs
-        rgb_final = torch.sum(weights.unsqueeze(-1)*rgbs, -2) # (N_rays, 3)
-        #  sum N_samples rgb results
-        if DEBUG:
-            # import ipdb; ipdb.set_trace()
-            print(torch.min(xyz_, dim=0), torch.max(xyz_, dim=0), sigmas)
-            print(weights)
-            print(rgb_final, cls_final.shape, clspoints.shape)
-            print(torch.argmax(clspoints, dim=-1))
-            print(cls_final)
-
-        depth_final = torch.sum(weights*z_vals, -1) # (N_rays)
-        if white_back:
-            rgb_final = rgb_final + 1-weights_sum.unsqueeze(-1)
+        ################### cls #################
 
         return rgb_final, depth_final, cls_final, weights,
 

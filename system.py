@@ -31,6 +31,10 @@ class NeRFSystem(LightningModule):
         if hparams.N_importance > 0:
             self.nerf_fine = NeRF()
             self.models += [self.nerf_fine]
+        if hparams.pretrained:
+            load_ckpt(self.nerf_coarse, hparams.pretrained, model_name='nerf_coarse')
+            load_ckpt(self.nerf_fine, hparams.pretrained, model_name='nerf_fine')
+            print('Model load finished')
 
     def decode_batch(self, batch):
         rays = batch['rays'] # (B, 8)
@@ -290,6 +294,7 @@ class NeRF3DSystem_ib(NeRF3DSystem):
         if hparams.pretrained:
             load_ckpt(self.nerf_coarse, hparams.pretrained, model_name='nerf_coarse')
             load_ckpt(self.nerf_fine, hparams.pretrained, model_name='nerf_fine')
+            print('Model load finished')
 
                
     def forward(self, rays):
