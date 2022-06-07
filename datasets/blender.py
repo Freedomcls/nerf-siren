@@ -83,7 +83,7 @@ class BlenderDataset(Dataset):
                                              self.far*torch.ones_like(rays_o[:, :1])],
                                              1)] # (h*w, 8)
 
-            self.all_rays = torch.cat(self.all_rays, 0) # (len(self.meta['frames])*h*w, 3)
+            self.all_rays = torch.cat(self.all_rays, 0) # (len(self.meta['frames])*h*w, 8)
             self.all_rgbs = torch.cat(self.all_rgbs, 0) # (len(self.meta['frames])*h*w, 3)
             self.all_parse = torch.cat(self.all_parse, 0)
 
@@ -172,8 +172,9 @@ class BlenderDatasetWithClsBatch(BlenderDataset):
             parse_path = image_path.replace('val','labels')
             parse_res = Image.open(parse_path)
             parse_res = np.asarray((parse_res))
+            parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]),interpolation=cv2.INTER_NEAREST)
             parse_res = Image.fromarray(parse_res)
-            parse_res = parse_res.resize(self.img_wh, Image.LANCZOS)
+            # parse_res = parse_res.resize(self.img_wh, Image.LANCZOS)
             parse_res = self.transform(parse_res)
             parse_res = parse_res.reshape(-1, 1).contiguous()
             ####
