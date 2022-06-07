@@ -34,40 +34,22 @@ class BlenderDataset(Dataset):
         self.near = 2.0
         self.far = 6.0
         self.bounds = np.array([self.near, self.far])
-        
+
         # ray directions for all pixels, same for all images (same H, W, focal)
         self.directions = \
             get_ray_directions(h, w, self.focal) # (h, w, 3)
-            
+
         if self.split == 'train': # create buffer of all rays and rgb data
             self.image_paths = []
             self.poses = []
             self.all_rays = []
             self.all_rgbs = []
-            self.all_parse = []
-
             for frame in self.meta['frames']:
                 pose = np.array(frame['transform_matrix'])[:3, :4]
                 self.poses += [pose]
                 c2w = torch.FloatTensor(pose)
 
                 image_path = os.path.join(self.root_dir, f"{frame['file_path']}.png")
-
-                ### parse
-                parse_path = image_path.replace('train','labels')
-                parse_res = Image.open(parse_path)
-                parse_res = np.asarray((parse_res))/10
-                # print(np.max(parse_res))
-                parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]),interpolation=cv2.INTER_NEAREST)
-                parse_res = Image.fromarray(parse_res)
-                # parse_res = parse_res.resize(self.img_wh, Image.LANCZOS)
-                parse_res = self.transform(parse_res)
-                parse_res = parse_res.reshape(-1, 1).contiguous()
-                # print(torch.max(parse_res))
-                self.all_parse  += [parse_res]
-                ####
-
-
                 self.image_paths += [image_path]
                 img = Image.open(image_path)
                 img = img.resize(self.img_wh, Image.LANCZOS)
@@ -75,17 +57,16 @@ class BlenderDataset(Dataset):
                 img = img.view(4, -1).permute(1, 0) # (h*w, 4) RGBA
                 img = img[:, :3]*img[:, -1:] + (1-img[:, -1:]) # blend A to RGB
                 self.all_rgbs += [img]
-                
+
                 rays_o, rays_d = get_rays(self.directions, c2w) # both (h*w, 3)
 
-                self.all_rays += [torch.cat([rays_o, rays_d, 
+                self.all_rays += [torch.cat([rays_o, rays_d,
                                              self.near*torch.ones_like(rays_o[:, :1]),
                                              self.far*torch.ones_like(rays_o[:, :1])],
                                              1)] # (h*w, 8)
 
-            self.all_rays = torch.cat(self.all_rays, 0) # (len(self.meta['frames])*h*w, 8)
+            self.all_rays = torch.cat(self.all_rays, 0) # (len(self.meta['frames])*h*w, 3)
             self.all_rgbs = torch.cat(self.all_rgbs, 0) # (len(self.meta['frames])*h*w, 3)
-            self.all_parse = torch.cat(self.all_parse, 0)
 
     def define_transforms(self):
         self.transform = T.ToTensor()
@@ -135,6 +116,74 @@ class BlenderDatasetWithClsBatch(BlenderDataset):
             return 4 # only validate 8 images (to support <=8 gpus)
             # return len(self.image_paths)
         return len(self.meta['frames'])
+
+    def read_meta(self):
+        with open(os.path.join(self.root_dir,
+                               f"transforms_{self.split}.json"), 'r') as f:
+            self.meta = json.load(f)
+
+        w, h = self.img_wh
+        self.focal = 0.5*800/np.tan(0.5*self.meta['camera_angle_x']) # original focal length
+                                                                     # when W=800
+
+        self.focal *= self.img_wh[0]/800 # modify focal length to match size self.img_wh
+
+        # bounds, common for all scenes
+        self.near = 2.0
+        self.far = 6.0
+        self.bounds = np.array([self.near, self.far])
+
+        # ray directions for all pixels, same for all images (same H, W, focal)
+        self.directions = \
+            get_ray_directions(h, w, self.focal) # (h, w, 3)
+
+        if self.split == 'train': # create buffer of all rays and rgb data
+            self.image_paths = []
+            self.poses = []
+            self.all_rays = []
+            self.all_rgbs = []
+            self.all_parse = []
+
+            for frame in self.meta['frames']:
+                pose = np.array(frame['transform_matrix'])[:3, :4]
+                self.poses += [pose]
+                c2w = torch.FloatTensor(pose)
+
+                image_path = os.path.join(self.root_dir, f"{frame['file_path']}.png")
+
+                ### parse
+                parse_path = image_path.replace('train','labels')
+                parse_res = Image.open(parse_path)
+                parse_res = np.asarray((parse_res))/10
+                # print(np.max(parse_res))
+                parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]),interpolation=cv2.INTER_NEAREST)
+                parse_res = Image.fromarray(parse_res)
+                # parse_res = parse_res.resize(self.img_wh, Image.LANCZOS)
+                parse_res = self.transform(parse_res)
+                parse_res = parse_res.reshape(-1, 1).contiguous()
+                # print(torch.max(parse_res))
+                self.all_parse  += [parse_res]
+                ####
+
+
+                self.image_paths += [image_path]
+                img = Image.open(image_path)
+                img = img.resize(self.img_wh, Image.LANCZOS)
+                img = self.transform(img) # (4, h, w)
+                img = img.view(4, -1).permute(1, 0) # (h*w, 4) RGBA
+                img = img[:, :3]*img[:, -1:] + (1-img[:, -1:]) # blend A to RGB
+                self.all_rgbs += [img]
+
+                rays_o, rays_d = get_rays(self.directions, c2w) # both (h*w, 3)
+
+                self.all_rays += [torch.cat([rays_o, rays_d,
+                                             self.near*torch.ones_like(rays_o[:, :1]),
+                                             self.far*torch.ones_like(rays_o[:, :1])],
+                                             1)] # (h*w, 8)
+
+            self.all_rays = torch.cat(self.all_rays, 0) # (len(self.meta['frames])*h*w, 8)
+            self.all_rgbs = torch.cat(self.all_rgbs, 0) # (len(self.meta['frames])*h*w, 3)
+            self.all_parse = torch.cat(self.all_parse, 0)
 
     def __getitem__(self, idx):
         if self.split == 'train': # use data in the buffers
