@@ -24,6 +24,9 @@ def get_opts():
     parser.add_argument('--root_dir', type=str,
                         default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
                         help='root directory of dataset')
+    parser.add_argument('--vis_type', type=str, default='color',
+                        choices=['color', 'label'],
+                        help='which type to vis')
     parser.add_argument('--dataset_name', type=str, default='blender',
                         choices=['blender', 'llff'],
                         help='which dataset to validate')
@@ -212,9 +215,34 @@ if __name__ == "__main__":
         print('Fusing colors ...')
         for idx in tqdm(range(len(dataset.image_paths))):
             ## read image of this pose
-            image = Image.open(dataset.image_paths[idx]).convert('RGB')
-            image = image.resize(tuple(args.img_wh), Image.LANCZOS)
-            image = np.array(image)
+            if args.vis_type == 'label':
+                image_path = dataset.image_paths[idx]
+                parse_path = image_path.replace('train','labels')
+                parse_res = Image.open(parse_path)
+                parse_res = np.asarray((parse_res))/10
+                parse_res = cv2.resize(parse_res, tuple(args.img_wh),interpolation=cv2.INTER_NEAREST)
+                parse_res = parse_res.astype(np.uint8)
+                part_colors = [[255, 0, 0], [255, 0, 255], [255, 170, 0],
+                [255, 0, 85], [255, 0, 170],
+                [0, 255, 0], [85, 255, 0], [170, 255, 0],
+                [0, 255, 85], [0, 255, 170],
+                [0, 0, 255], [85, 0, 255], [170, 0, 255],
+                [0, 85, 255], [0, 170, 255],
+                [255, 255, 0], [255, 255, 85], [255, 255, 170],
+                [255, 85, 255], [255, 170, 255],
+                [0, 255, 255], [85, 255, 255], [170, 255, 255]]
+                parse_res_color = np.zeros((parse_res.shape[0], parse_res.shape[1], 3))
+                num_cls = np.max(parse_res)
+                # print(num_cls)
+                for i in range(1, num_cls+1):
+                    index = np.where(parse_res==i)
+                    # print(i, index, vis_pred)
+                    parse_res_color[index[0], index[1], :] = part_colors[i]
+                image = parse_res_color
+            else:
+                image = Image.open(dataset.image_paths[idx]).convert('RGB')
+                image = image.resize(tuple(args.img_wh), Image.LANCZOS)
+                image = np.array(image)
 
             ## read the camera to world relative pose
             P_c2w = np.concatenate([dataset.poses[idx], np.array([0, 0, 0, 1]).reshape(1, 4)], 0)

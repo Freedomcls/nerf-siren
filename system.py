@@ -167,7 +167,7 @@ class NeRF3DSystem(NeRFSystem):
             raise NotImplementedError(self.hparams.semantic_network)
 
         self.models += [self.points]
-
+        self.vis_num = 0
         #if hparams.pretrained:
         #    load_ckpt(self.nerf_coarse, hparams.pretrained, model_name='nerf_coarse')
         #    load_ckpt(self.nerf_fine, hparams.pretrained, model_name='nerf_fine')
@@ -209,9 +209,9 @@ class NeRF3DSystem(NeRFSystem):
                 each_cls = np.argmax(each_cls, axis=-1)
                 
                 each_gt_cls = parse[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0]).detach().cpu().numpy()
-                color_cls(each_rgb * 255., each_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_b{i}_pred")
-                color_cls(each_gt_rgb * 255., each_gt_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_b{i}_gt")            
-
+                color_cls(each_rgb * 255., each_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_step{self.vis_num}_b{i}_pred_")
+                color_cls(each_gt_rgb * 255., each_gt_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_step{self.vis_num}_b{i}_gt_")
+        self.vis_num += 1
         return {'loss': loss["sum"],
                 'progress_bar': {'train_psnr': psnr_ }, 
                 'log': log

@@ -20,7 +20,7 @@ from datasets.depth_utils import *
 import cv2
 torch.backends.cudnn.benchmark = True
 # DEBUG = eval(os.environ.get("DEBUG", "False"))
-DEBUG = FALSE
+DEBUG = False
 def get_opts():
     parser = ArgumentParser()
     parser.add_argument('--mode', default="normal",
@@ -30,7 +30,7 @@ def get_opts():
                         default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
                         help='root directory of dataset')
     parser.add_argument('--dataset_name', type=str, default='blender',
-                        choices=['blender', 'llff', "llff_cls", "llff_cls_ib"],
+                        choices=['blender', 'blender_cls_ib' ,'llff', "llff_cls", "llff_cls_ib"],
                         help='which dataset to validate')
     parser.add_argument('-sn', '--semantic_network', type=str, default='pointnet',
                         choices=['pointnet', 'conv3d'], 
@@ -163,7 +163,7 @@ if __name__ == "__main__":
             cls_num = _cls
             raw_cls_pred = results["cls_fine"].view(h, w, cls_num).cpu().numpy()
             cls_pred = np.argmax(raw_cls_pred, axis=-1)
-            cv2.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred * 10)
+            cv2.imwrite(os.path.join(dir_name, 'r_%d.png'%i), cls_pred * 10)
             # imageio.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred * 255)
             if DEBUG:
                 print(cls_pred[cls_pred!=0])
