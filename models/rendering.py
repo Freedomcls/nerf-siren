@@ -5,9 +5,9 @@ import torch.nn.functional as F
 import numpy as np
 from .ConvNetWork import Voxelizer
 import MinkowskiEngine as ME
+import ast
 
-# DEBUG = os.environ.get("DEBUG", False)
-DEBUG = False
+DEBUG = ast.literal_eval(os.environ.get("DEBUG", "False"))
 
 __all__ = ['render_rays', "render_rays_3d"]
 

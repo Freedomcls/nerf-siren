@@ -18,9 +18,11 @@ import metrics
 from datasets import dataset_dict
 from datasets.depth_utils import *
 import cv2
+import ast
 torch.backends.cudnn.benchmark = True
-# DEBUG = eval(os.environ.get("DEBUG", "False"))
-DEBUG = False
+
+DEBUG = ast.literal_eval(os.environ.get("DEBUG", "False"))
+
 def get_opts():
     parser = ArgumentParser()
     parser.add_argument('--mode', default="normal",

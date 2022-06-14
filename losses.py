@@ -3,9 +3,9 @@ from torch import nn
 import os
 import numpy as np
 import torch.nn.functional as F
+import ast
 
-# DEBUG = os.environ.get("DEBUG", False)
-DEBUG=False
+DEBUG = ast.literal_eval(os.environ.get("DEBUG", "False"))
 
 class MSELoss(nn.Module):
     def __init__(self):
@@ -36,7 +36,7 @@ class MSECELoss(nn.Module):
 
         cls_target = cls_target.to(torch.long).reshape(-1)
         obj_mask = (cls_target != 0 ).to(dtype=torch.long, device=cls_target.device)
-        print(inputs['cls_coarse'].shape, cls_target.shape, "loss")
+        # print(inputs['cls_coarse'].shape, cls_target.shape, "loss")
 
         if DEBUG:
             print(inputs['cls_coarse'].shape, cls_target.shape, "loss")
