@@ -66,6 +66,7 @@ class MSENLLLoss(nn.Module):
         self.loss = nn.MSELoss(reduction='mean')
 
     def forward(self, inputs, rgb_target, cls_target, weight=0.):
+
         # print(inputs['cls_coarse'].shape, cls_target.shape)
         loss = {}
         cls_target = torch.squeeze(cls_target)

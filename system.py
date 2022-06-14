@@ -31,6 +31,10 @@ class NeRFSystem(LightningModule):
         if hparams.N_importance > 0:
             self.nerf_fine = NeRF()
             self.models += [self.nerf_fine]
+        if hparams.pretrained:
+            load_ckpt(self.nerf_coarse, hparams.pretrained, model_name='nerf_coarse')
+            load_ckpt(self.nerf_fine, hparams.pretrained, model_name='nerf_fine')
+            print('Model load finished')
 
     def decode_batch(self, batch):
         rays = batch['rays'] # (B, 8)
@@ -162,16 +166,16 @@ class NeRF3DSystem(NeRFSystem):
             raise NotImplementedError(self.hparams.semantic_network)
 
         self.models += [self.points]
-
+        self.vis_num = 0
         #if hparams.pretrained:
         #    load_ckpt(self.nerf_coarse, hparams.pretrained, model_name='nerf_coarse')
         #    load_ckpt(self.nerf_fine, hparams.pretrained, model_name='nerf_fine')
         
 
     def decode_batch(self, batch):
-        rays = batch['rays'] # (B, 8)
-        rgbs = batch['rgbs'] # (B, 3)
-        parse = batch["parse"] 
+        rays = batch['rays'] # (B, H*W, 8)
+        rgbs = batch['rgbs'] # (B, h*W, 3)
+        parse = batch["parse"]  # (B, h*W, 3)
         return rays, rgbs, parse
 
     def training_step(self, batch, batch_nb):
@@ -204,9 +208,9 @@ class NeRF3DSystem(NeRFSystem):
                 each_cls = np.argmax(each_cls, axis=-1)
                 
                 each_gt_cls = parse[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0]).detach().cpu().numpy()
-                color_cls(each_rgb * 255., each_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_b{i}_pred")
-                color_cls(each_gt_rgb * 255., each_gt_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_b{i}_gt")            
-
+                color_cls(each_rgb * 255., each_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_step{self.vis_num}_b{i}_pred_")
+                color_cls(each_gt_rgb * 255., each_gt_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_step{self.vis_num}_b{i}_gt_")
+        self.vis_num += 1
         return {'loss': loss["sum"],
                 'progress_bar': {'train_psnr': psnr_ }, 
                 'log': log
@@ -276,6 +280,7 @@ class NeRF3DSystem_ib(NeRF3DSystem):
         if hparams.pretrained:
             load_ckpt(self.nerf_coarse, hparams.pretrained, model_name='nerf_coarse')
             load_ckpt(self.nerf_fine, hparams.pretrained, model_name='nerf_fine')
+            print('Model load finished')
 
                
     def forward(self, rays):

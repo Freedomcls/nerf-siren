@@ -182,8 +182,10 @@ class LLFFClsDataset(Dataset):
                 https://gis.stackexchange.com/questions/10931/what-is-lanczos-resampling-useful-for-in-a-spatial-context
                 """
                 parse_res = convert_pred(np.asarray(parse_res))
+                #print(np.max(parse_res))
+                parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]),interpolation=cv2.INTER_NEAREST) 
                 parse_res = Image.fromarray(parse_res)
-                parse_res = parse_res.resize(self.img_wh, Image.LANCZOS) 
+                # parse_res = parse_res.resize(self.img_wh, Image.LANCZOS) 
 
                 # parse_res = cv2.resize(parse_res, (self.img_wh[1], self.img_wh[0]))
                 # print(parse_res.shape)
@@ -193,7 +195,7 @@ class LLFFClsDataset(Dataset):
                 parse_res = self.transform(parse_res)
                 img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
                 parse_res = parse_res.reshape(-1, 1).contiguous() # (h*w, 1) 
-
+                #print(torch.max(parse_res))
                 # parse_res = parse_res.view(3, -1).permute(1, 0) # (h*w, 3) RGB 
                 # print("train", parse_res.shape, parse_res[parse_res!=0])
                 # print(parse_res.numpy().shape)
