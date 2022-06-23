@@ -43,6 +43,7 @@ class NeRFSystem(LightningModule):
 
     def forward(self, rays):
         """Do batched inference on rays using chunk."""
+        rays = rays.reshape(-1,8) # todo
         B = rays.shape[0] # B is equal to H*W
         results = defaultdict(list)
         # set chunk as large as possible
@@ -159,7 +160,7 @@ class NeRF3DSystem(NeRFSystem):
             self.points = PointNetDenseCls(k=_cls, inc=6) # add rgb
             self.render_fun = render_rays_3d
         elif self.hparams.semantic_network == 'conv3d':
-            self.points = MinkUNet14A(in_channels=3, out_channels=_cls) # rgb in color
+            self.points = MinkUNet14A(in_channels=4, out_channels=_cls) # rgb in color
             self.points = ME.MinkowskiSyncBatchNorm.convert_sync_batchnorm(self.points)
             self.render_fun = render_rays_3d_conv
         else:
@@ -210,7 +211,7 @@ class NeRF3DSystem(NeRFSystem):
                 each_gt_cls = parse[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0]).detach().cpu().numpy()
                 color_cls(each_rgb * 255., each_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_step{self.vis_num}_b{i}_pred_")
                 color_cls(each_gt_rgb * 255., each_gt_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_step{self.vis_num}_b{i}_gt_")
-        self.vis_num += 1
+        # self.vis_num += 1
         return {'loss': loss["sum"],
                 'progress_bar': {'train_psnr': psnr_ }, 
                 'log': log

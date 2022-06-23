@@ -47,9 +47,9 @@ def color_cls(img, pred_map, savedir, prefix="", color_legend=True):
             color = part_colors[i]
             thickness = -1
             end_point = (start_point[0]+delta, start_point[1]+delta)
-            vis_im = cv2.rectangle(vis_im, start_point, end_point, color, thickness)
+            # vis_im = cv2.rectangle(vis_im, start_point, end_point, color, thickness)
             txt_point = (start_point[0]+delta, start_point[1]+delta)
-            vis_im = cv2.putText(vis_im, f"{cls_map.get(i, None)}", txt_point,  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,  cv2.LINE_AA)
+            # vis_im = cv2.putText(vis_im, f"{cls_map.get(i, None)}", txt_point,  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,  cv2.LINE_AA)
             start_point = (start_point[0], start_point[1]+2*delta)
         
     

@@ -20,3 +20,8 @@ CUDA_VISIBLE_DEVICES=7 python eval.py --mode d3_ib --root_dir chair --dataset_na
 1 首先生成训练集的label图像  python eval.py --mode d3_ib --root_dir chair --dataset_name blender_cls_ib --scene_name train --img_wh 400 400 --N_importance 64 --chunk 40000 --ckpt_path ckpts/debug-0607/\{epoch\:d\}/epoch\=30-step\=154.ckpt --scene_name debug0607train -sn conv3d
 2 在results/debug0607train下有生成label图像, 与训练集所用gt label图像名字对应, 把这些文件放到/data/chair/pre_labels文件夹下
 3 然后利用label图像投影原理  python extract_color_mesh.py --root_dir chair/ --dataset_name blender --scene_name chair --img_wh 400 400 --ckpt_path ckpts/debug-0607/\{epoch\:d\}/epoch\=30-step\=154.ckpt  --sigma_threshold 20.0 --N_grid 256 --vis_type label
+
+
+python train.py --dataset_name blender_cls_ib --root_dir chair --N_importance 64 --img_wh 50 50 --num_epochs 130 --batch_size 1  --optimizer adam --lr 1e-4 --lr_scheduler steplr --decay_step 50 100 --decay_gamma 0.5 --exp_name debug_rgb  --loss_type mse --chunk 2500
+
+python train.py --dataset_name blender_cls_ib --root_dir chair --N_importance 64 --img_wh 50 50 --num_epochs 130 --batch_size 1  --optimizer adam --lr 1e-4 --lr_scheduler steplr --decay_step 50 100 --decay_gamma 0.5 --exp_name debug_rgb_cls  --loss_type msenll --chunk 2500 --mode d3_ib --semantic_network conv3d --loss_type msenll --num_gpus 2 --pretrained ckpts/debug_rgb/\{epoch\:d\}/epoch\=129-step\=1689.ckpt

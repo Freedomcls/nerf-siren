@@ -359,7 +359,8 @@ def render_rays_3d(models,
         sample_points = sample_points / norm_sp
 
         rgbs_points = rgbs.reshape(-1,3)[sample_mask.reshape(-1)]
-        sample_points = torch.cat([sample_points,  rgbs_points], dim=1) # pts, 6, 
+
+        sample_points = torch.cat([sample_points,  rgbs_points], dim=1) # pts, 6,
         sample_points = sample_points.transpose(1, 0) # 6, pts
         sample_points = torch.unsqueeze(sample_points, 0) # 1, 6, pts
         sample_points = sample_points.contiguous()
@@ -502,8 +503,8 @@ def render_rays_3d_conv(models,
                                              dir_embedded[i:i+chunk]], 1)
             else:
                 xyzdir_embedded = xyz_embedded
-            with torch.no_grad(): 
-                out_chunks += [model(xyzdir_embedded, sigma_only=weights_only)]
+            # with torch.no_grad():
+            out_chunks += [model(xyzdir_embedded, sigma_only=weights_only)]
         
         out = torch.cat(out_chunks, 0)
         # print(out.shape, xyz_.shape, N_rays, N_samples)
@@ -580,11 +581,17 @@ def render_rays_3d_conv(models,
         # sample_points = sample_points / norm_sp
         # print(sample_points[100:200])
 
-
         rgbs_points = rgbs.reshape(-1,3)[sample_mask.reshape(-1)]
-        sample_points = torch.cat([sample_points,  rgbs_points], dim=1) # pts, 6,
+
+        if True:
+            sample_weights_points = sample_weights.reshape(-1,1)[sample_mask.reshape(-1)]
+            # sample_weights = sample_weights.unsqueeze(-1)
+            # print(sample_points.shape, rgbs_points.shape, sample_weights_points.shape)
+            sample_points = torch.cat([sample_points,  rgbs_points, sample_weights_points], dim=1)
+        else:
+            sample_points = torch.cat([sample_points,  rgbs_points], dim=1) # pts, 6,
         if sample_points.shape[0] < 3200:
-            points_preds = torch.zeros(sample_points.shape[0]).cuda()
+            points_preds = torch.zeros((sample_points.shape[0],_cls_num)).cuda()
         elif network == 'pointnet':
             sample_points = sample_points.transpose(1, 0) # 6, pts
             sample_points = torch.unsqueeze(sample_points, 0) # 1, 6, pts
@@ -627,7 +634,10 @@ def render_rays_3d_conv(models,
             # points_preds = F.log_softmax(points_preds,dim=-1)
             # points_preds = F.softmax(points_preds,dim=-1)
 
-        clspoints[sample_mask] = points_preds # N rays, N_sample, cls
+        clspoints = clspoints.reshape(-1,6)
+        clspoints[sample_mask.reshape(-1)] = points_preds
+        clspoints = clspoints.reshape((N_rays, N_sample, _cls_num))
+        # clspoints[sample_mask] = points_preds # N rays, N_sample, cls
         # orginal rgb ways, use sum
         cls_final = torch.sum(weights.unsqueeze(-1)*clspoints, -2) # N_rays, cls
         cls_final = F.log_softmax(cls_final, dim=-1)
