@@ -73,7 +73,9 @@ def render_rays(models,
                 N_importance=0,
                 chunk=1024*32,
                 white_back=False,
-                test_time=False
+                test_time=False,
+                _cls_num=6,
+                network=None,
                 ):
     """
     Render rays by computing the output of @model applied on @rays
@@ -477,7 +479,7 @@ def render_rays_3d_conv(models,
                   chunk=1024*32,
                   white_back=False,
                   test_time=False,
-                  _cls_num=11,
+                  _cls_num=6,
                   network='3DUNet',
                 ):
     """

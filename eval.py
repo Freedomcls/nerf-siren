@@ -40,7 +40,7 @@ def get_opts():
     parser.add_argument('--scene_name', type=str, default='test',
                         help='scene name, used as output folder name')
     parser.add_argument('--split', type=str, default='test',
-                        help='test or test_train')
+                        help='test or train')
     parser.add_argument('--img_wh', nargs="+", type=int, default=[800, 800],
                         help='resolution (img_w, img_h) of the image')
     parser.add_argument('--spheric_poses', default=False, action="store_true",
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     if args.semantic_network == "pointnet":
         points = PointNetDenseCls(k=_cls, inc=6)
     elif args.semantic_network == "conv3d":
-        points = MinkUNet14A(in_channels=3, out_channels=_cls)
+        points = MinkUNet14A(in_channels=4, out_channels=_cls)
         points = ME.MinkowskiSyncBatchNorm.convert_sync_batchnorm(points)
 
 
