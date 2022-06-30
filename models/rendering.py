@@ -485,7 +485,7 @@ def render_rays_3d_conv(models,
     """
     render cls results.
     """
-    def inference(model, points, embedding_xyz, xyz_, dir_, dir_embedded, z_vals, weights_only=False):
+    def inference(model, points, embedding_xyz, xyz_, dir_, dir_embedded, z_vals, weights_only=False, is_use_mixed_precision=False):
         N_samples_ = xyz_.shape[1]
         # Embed directions
         xyz_ = xyz_.view(-1, 3) # (N_rays*N_samples_, 3)
@@ -593,7 +593,7 @@ def render_rays_3d_conv(models,
         else:
             sample_points = torch.cat([sample_points,  rgbs_points], dim=1) # pts, 6,
         if sample_points.shape[0] < 3200:
-            points_preds = torch.zeros((sample_points.shape[0],_cls_num)).cuda()
+            points_preds = torch.zeros((sample_points.shape[0],_cls_num),dtype=torch.float32).cuda()
         elif network == 'pointnet':
             sample_points = sample_points.transpose(1, 0) # 6, pts
             sample_points = torch.unsqueeze(sample_points, 0) # 1, 6, pts
@@ -637,7 +637,7 @@ def render_rays_3d_conv(models,
             # points_preds = F.softmax(points_preds,dim=-1)
 
         clspoints = clspoints.reshape(-1,6)
-        clspoints[sample_mask.reshape(-1)] = points_preds
+        clspoints[sample_mask.reshape(-1)] = points_preds.float()
         clspoints = clspoints.reshape((N_rays, N_sample, _cls_num))
         # clspoints[sample_mask] = points_preds # N rays, N_sample, cls
         # orginal rgb ways, use sum

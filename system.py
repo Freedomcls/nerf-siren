@@ -102,7 +102,11 @@ class NeRFSystem(LightningModule):
     def training_step(self, batch, batch_nb):
         log = {'lr': get_learning_rate(self.optimizer)}
         rays, rgbs = self.decode_batch(batch)
-        results = self(rays) # all pics rays concat
+        if self.hparams.is_use_mixed_precision:
+            with torch.cuda.amp.autocast():
+                results = self(rays) # all pics rays concat
+        else:
+            results = self(rays)
         log['train/loss'] = loss = self.loss(results, rgbs)
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
 
@@ -183,8 +187,11 @@ class NeRF3DSystem(NeRFSystem):
     def training_step(self, batch, batch_nb):
         log = {'lr': get_learning_rate(self.optimizer)}
         rays, rgbs, parse = self.decode_batch(batch)
-        
-        results = self(rays)
+        if self.hparams.is_use_mixed_precision:
+            with torch.cuda.amp.autocast():
+                results = self(rays)
+        else:
+            results = self(rays)
         # print(rays.shape, rgbs.shape, parse.shape)
         loss = self.loss(results, rgbs, parse)
         log['train/total_loss'] = loss["sum"]
@@ -202,14 +209,18 @@ class NeRF3DSystem(NeRFSystem):
         # save steps results
         if self._vis:
             clss = results[f"cls_{typ}"].reshape(N, B, self._cls)
+            if self.hparams.is_use_mixed_precision:
+                h, w = 50, 50
+            else:
+                h, w = self.hparams.img_wh[1], self.hparams.img_wh[0]
             for i in range(N):
-                each_rgb = pred_rgb[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], -1).detach().cpu().numpy()
-                each_gt_rgb = rgbs[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], -1).detach().cpu().numpy()
+                each_rgb = pred_rgb[i].reshape(h, w, -1).detach().cpu().numpy()
+                each_gt_rgb = rgbs[i].reshape(h, w, -1).detach().cpu().numpy()
                 
-                each_cls = clss[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0], self._cls).detach().cpu().numpy()
+                each_cls = clss[i].reshape(h, w, self._cls).detach().cpu().numpy()
                 each_cls = np.argmax(each_cls, axis=-1)
                 
-                each_gt_cls = parse[i].reshape(self.hparams.img_wh[1], self.hparams.img_wh[0]).detach().cpu().numpy()
+                each_gt_cls = parse[i].reshape(h, w).detach().cpu().numpy()
                 color_cls(each_rgb * 255., each_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_step{self.vis_num}_b{i}_pred_")
                 color_cls(each_gt_rgb * 255., each_gt_cls, savedir=f"./mid_results/{self.hparams.exp_name}", prefix=f"e{self.current_epoch}_step{self.vis_num}_b{i}_gt_")
         # self.vis_num += 1

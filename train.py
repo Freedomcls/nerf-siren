@@ -34,17 +34,32 @@ if __name__ == '__main__':
         create_git_tag=False
     )
 
-    trainer = Trainer(max_epochs=hparams.num_epochs,
-                      checkpoint_callback=checkpoint_callback,
-                      resume_from_checkpoint=hparams.ckpt_path,
-                      logger=logger,
-                      weights_summary=None,
-                      progress_bar_refresh_rate=1,
-                      gpus=hparams.num_gpus,
-                      distributed_backend='ddp' if hparams.num_gpus>1 else None,
-                      plugins=DDPPlugin(find_unused_parameters=True),
-                      num_sanity_val_steps=1,
-                      benchmark=True,
-                      profiler=hparams.num_gpus==1)
+    if hparams.is_use_mixed_precision:
+        trainer = Trainer(max_epochs=hparams.num_epochs,
+                    checkpoint_callback=checkpoint_callback,
+                    resume_from_checkpoint=hparams.ckpt_path,
+                    logger=logger,
+                    weights_summary=None,
+                    progress_bar_refresh_rate=1,
+                    gpus=hparams.num_gpus,
+                    distributed_backend='ddp' if hparams.num_gpus>1 else None,
+                    plugins=DDPPlugin(find_unused_parameters=True),
+                    num_sanity_val_steps=1,
+                    benchmark=True,
+                    precision=16,
+                    profiler=hparams.num_gpus==1)
+    else:
+        trainer = Trainer(max_epochs=hparams.num_epochs,
+                        checkpoint_callback=checkpoint_callback,
+                        resume_from_checkpoint=hparams.ckpt_path,
+                        logger=logger,
+                        weights_summary=None,
+                        progress_bar_refresh_rate=1,
+                        gpus=hparams.num_gpus,
+                        distributed_backend='ddp' if hparams.num_gpus>1 else None,
+                        plugins=DDPPlugin(find_unused_parameters=True),
+                        num_sanity_val_steps=1,
+                        benchmark=True,
+                        profiler=hparams.num_gpus==1)
 
     trainer.fit(system)

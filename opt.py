@@ -82,7 +82,6 @@ def get_opts():
 
     parser.add_argument('--exp_name', type=str, default='exp',
                         help='experiment name')
-
-    parse.add_argument('--is_crop', type=bool, default=False, help='crop or not')
-
+    parser.add_argument('--is_crop', type=bool, default=False, help='crop or not')
+    parser.add_argument('--is_use_mixed_precision', type=bool, default=False, help='mixed precision or not')
     return parser.parse_args()
