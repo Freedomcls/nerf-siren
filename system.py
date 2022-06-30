@@ -70,12 +70,13 @@ class NeRFSystem(LightningModule):
     def prepare_data(self):
         dataset = dataset_dict[self.hparams.dataset_name]
         kwargs = {'root_dir': self.hparams.root_dir,
-                  'img_wh': tuple(self.hparams.img_wh)}
+                  'img_wh': tuple(self.hparams.img_wh),
+                  }
         if 'llff' in self.hparams.dataset_name:
             kwargs['spheric_poses'] = self.hparams.spheric_poses
             kwargs['val_num'] = self.hparams.num_gpus
 
-        self.train_dataset = dataset(split='train', **kwargs)
+        self.train_dataset = dataset(split='train', is_crop=self.hparams.is_crop, **kwargs)
         self.val_dataset = dataset(split='val', **kwargs)
 
     def configure_optimizers(self):

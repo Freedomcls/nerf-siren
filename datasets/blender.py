@@ -10,7 +10,7 @@ from .ray_utils import *
 import random
 
 class BlenderDataset(Dataset):
-    def __init__(self, root_dir, split='train', img_wh=(800, 800)):
+    def __init__(self, root_dir, split='train', img_wh=(800, 800),is_crop=False):
         self.root_dir = root_dir
         self.split = split
         assert img_wh[0] == img_wh[1], 'image width must equal image height!'
@@ -19,6 +19,7 @@ class BlenderDataset(Dataset):
 
         self.read_meta()
         self.white_back = True
+        self.is_crop = is_crop
 
     def read_meta(self):
         with open(os.path.join(self.root_dir,
@@ -188,27 +189,28 @@ class BlenderDatasetWithClsBatch(BlenderDataset):
 
     def __getitem__(self, idx):
         if self.split == 'train': # use data in the buffers
-            crop_size = (50,50)
-            h, w = self.img_wh[1], self.img_wh[0]
-            h_crop_begin = random.randint(0, h - crop_size[0] - 1)
-            w_crop_begin = random.randint(0, w - crop_size[1] - 1)
-            rays = self.all_rays.reshape((len(self.meta['frames']), h, w, 8))
-            rgbs = self.all_rgbs.reshape((len(self.meta['frames']),h, w, 3))
-            parse = self.all_parse.reshape((len(self.meta['frames']), h, w, 1))
-            rays = rays[idx, h_crop_begin:h_crop_begin+crop_size[0],w_crop_begin:w_crop_begin+crop_size[1],:]
-            rgbs = rgbs[idx, h_crop_begin:h_crop_begin+crop_size[0],w_crop_begin:w_crop_begin+crop_size[1],:]
-            parse = parse[idx, h_crop_begin:h_crop_begin+crop_size[0],w_crop_begin:w_crop_begin+crop_size[1],:]
-            rays = rays.reshape(-1,8)
-            rgbs = rgbs.reshape(-1,3)
-            parse = parse.reshape(-1,1)
-            # print(rays.shape, rgbs.shape, parse.shape)
-            sample = {'rays':rays, 'rgbs':rgbs, 'parse':parse}
-
-            # h, w = self.img_wh[1], self.img_wh[0]
-            # sample = {'rays': self.all_rays[idx*h*w:(idx+1)*h*w],
-            #           'rgbs': self.all_rgbs[idx*h*w:(idx+1)*h*w],
-            #           'parse': self.all_parse[idx*h*w:(idx+1)*h*w],
-            #           }
+            if self.is_crop:
+                crop_size = (50,50)
+                h, w = self.img_wh[1], self.img_wh[0]
+                h_crop_begin = random.randint(0, h - crop_size[0] - 1)
+                w_crop_begin = random.randint(0, w - crop_size[1] - 1)
+                rays = self.all_rays.reshape((len(self.meta['frames']), h, w, 8))
+                rgbs = self.all_rgbs.reshape((len(self.meta['frames']),h, w, 3))
+                parse = self.all_parse.reshape((len(self.meta['frames']), h, w, 1))
+                rays = rays[idx, h_crop_begin:h_crop_begin+crop_size[0],w_crop_begin:w_crop_begin+crop_size[1],:]
+                rgbs = rgbs[idx, h_crop_begin:h_crop_begin+crop_size[0],w_crop_begin:w_crop_begin+crop_size[1],:]
+                parse = parse[idx, h_crop_begin:h_crop_begin+crop_size[0],w_crop_begin:w_crop_begin+crop_size[1],:]
+                rays = rays.reshape(-1,8)
+                rgbs = rgbs.reshape(-1,3)
+                parse = parse.reshape(-1,1)
+                # print(rays.shape, rgbs.shape, parse.shape)
+                sample = {'rays':rays, 'rgbs':rgbs, 'parse':parse}
+            else:
+                h, w = self.img_wh[1], self.img_wh[0]
+                sample = {'rays': self.all_rays[idx*h*w:(idx+1)*h*w],
+                          'rgbs': self.all_rgbs[idx*h*w:(idx+1)*h*w],
+                          'parse': self.all_parse[idx*h*w:(idx+1)*h*w],
+                          }
     
         else: # create data for each image separately
             frame = self.meta['frames'][idx]
