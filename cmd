@@ -21,6 +21,7 @@ CUDA_VISIBLE_DEVICES=7 python eval.py --mode d3_ib --root_dir chair --dataset_na
 2 在results/debug0607train下有生成label图像, 与训练集所用gt label图像名字对应, 把这些文件放到/data/chair/pre_labels文件夹下
 3 然后利用label图像投影原理  python extract_color_mesh.py --root_dir chair/ --dataset_name blender --scene_name chair --img_wh 400 400 --ckpt_path ckpts/debug-0607/\{epoch\:d\}/epoch\=30-step\=154.ckpt  --sigma_threshold 20.0 --N_grid 256 --vis_type label
 
+# color and seg end to end
 
 python train.py --dataset_name blender_cls_ib --root_dir chair --N_importance 64 --img_wh 50 50 --num_epochs 130 --batch_size 1  --optimizer adam --lr 1e-4 --lr_scheduler steplr --decay_step 50 100 --decay_gamma 0.5 --exp_name debug_rgb  --loss_type mse --chunk 2500
 
@@ -30,3 +31,13 @@ python train.py --dataset_name blender_cls_ib --root_dir chair --N_importance 64
 python eval.py  --root_dir chair --dataset_name blender --scene_name test_imgs --split test --img_wh 150 150 --N_importance 64 --chunk 22500 --ckpt_path ckpts/debug_memory2/\{epoch\:d\}/epoch\=299-step\=3899.ckpt
 
 python train.py --dataset_name blender_cls_ib --root_dir chair --N_importance 64 --img_wh 150 150 --num_epochs 300 --batch_size 1  --optimizer adam --lr 1e-3 --lr_scheduler steplr --decay_step 100 200 --decay_gamma 0.5 --exp_name debug_memory2  --loss_type mse --chunk 2500 --num_gpus 8
+
+python extract_color_mesh.py --root_dir chair/ --dataset_name blender --scene_name chair --img_wh 200 200 --ckpt_path ckpts/crop200x200_crop50x50_cls/\{epoch\:d\}/epoch\=299-step\=3899.ckpt  --sigma_threshold 20.0 --N_grid 256
+
+# replica dataset
+
+python train.py --dataset_name replica --root_dir room_0/Sequence_1/ --N_importance 64 --img_wh 320 240 --num_epochs 16 --batch_size 1024  --optimizer adam --lr 5e-4 --lr_scheduler steplr --decay_step 4 8 --decay_gamma 0.5 --exp_name debug_replica  --loss_type mse --chunk 40000
+
+python eval.py  --root_dir room_0/Sequence_1/ --dataset_name replica --scene_name test_replica --split test --img_wh 320 240 --N_importance 64 --chunk 40000 --ckpt_path ckpts/debug_replica/
+
+python extract_color_mesh.py --root_dir chair/ --dataset_name blender --scene_name chair --img_wh 400 400 --ckpt_path ckpts/debug-0607/\{epoch\:d\}/epoch\=30-step\=154.ckpt  --sigma_threshold 20.0 --N_grid 256
