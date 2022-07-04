@@ -1,4 +1,3 @@
-
 from pytorch_lightning import LightningModule
 from models.nerf import Embedding, NeRF
 from models.nerf_cls import NeRF_3D

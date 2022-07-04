@@ -92,7 +92,7 @@ class MSENLLLoss(nn.Module):
             cls_loss += F.nll_loss(cls_fine, cls_target.reshape(-1), reduction='mean')
             # if DEBUG: print(torch.max(cls_fine, dim=-1)[1][_print_mask], cls_target[_print_mask], "***", cls_loss)
 
-        
+        weight = 0.99
         loss["rgb"] = rgb_loss * weight
         loss["cls"] = cls_loss * (1-weight) 
         loss["sum"] = loss["rgb"] + loss["cls"]

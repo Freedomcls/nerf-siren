@@ -28,7 +28,7 @@ def get_opts():
                         choices=['color', 'label'],
                         help='which type to vis')
     parser.add_argument('--dataset_name', type=str, default='blender',
-                        choices=['blender', 'llff'],
+                        choices=['blender', 'llff', 'replica'],
                         help='which dataset to validate')
     parser.add_argument('--scene_name', type=str, default='test',
                         help='scene name, used as output ply filename')

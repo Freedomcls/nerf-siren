@@ -32,7 +32,7 @@ def get_opts():
                         default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
                         help='root directory of dataset')
     parser.add_argument('--dataset_name', type=str, default='blender',
-                        choices=['blender', 'blender_cls_ib' ,'llff', "llff_cls", "llff_cls_ib"],
+                        choices=['blender', 'blender_cls_ib' ,'llff', "llff_cls", "llff_cls_ib", "replica"],
                         help='which dataset to validate')
     parser.add_argument('-sn', '--semantic_network', type=str, default='pointnet',
                         choices=['pointnet', 'conv3d'], 

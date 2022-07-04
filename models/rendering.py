@@ -479,13 +479,13 @@ def render_rays_3d_conv(models,
                   chunk=1024*32,
                   white_back=False,
                   test_time=False,
-                  _cls_num=6,
+                  _cls_num=11,
                   network='3DUNet',
                 ):
     """
     render cls results.
     """
-    def inference(model, points, embedding_xyz, xyz_, dir_, dir_embedded, z_vals, weights_only=False, is_use_mixed_precision=False):
+    def inference(model, points, embedding_xyz, xyz_, dir_, dir_embedded, z_vals, weights_only=False):
         N_samples_ = xyz_.shape[1]
         # Embed directions
         xyz_ = xyz_.view(-1, 3) # (N_rays*N_samples_, 3)
@@ -564,7 +564,7 @@ def render_rays_3d_conv(models,
         ################### cls #################
         # use weight to sample xyz
         N_sample = weights.shape[1]
-        clspoints = torch.zeros((N_rays, N_sample, _cls_num)).cuda() # all is background
+        clspoints = torch.zeros((N_rays, N_sample, _cls_num),dtype=torch.float32).cuda() # all is background
         # set thresh avoid oom
         if  test_time:
             # _thresh = 0
@@ -594,6 +594,7 @@ def render_rays_3d_conv(models,
             sample_points = torch.cat([sample_points,  rgbs_points], dim=1) # pts, 6,
         if sample_points.shape[0] < 3200:
             points_preds = torch.zeros((sample_points.shape[0],_cls_num),dtype=torch.float32).cuda()
+            # print('00000000000000000000000')
         elif network == 'pointnet':
             sample_points = sample_points.transpose(1, 0) # 6, pts
             sample_points = torch.unsqueeze(sample_points, 0) # 1, 6, pts
@@ -637,6 +638,7 @@ def render_rays_3d_conv(models,
             # points_preds = F.softmax(points_preds,dim=-1)
 
         clspoints = clspoints.reshape(-1,6)
+        # print('11111',xyz_.dtype,clspoints.dtype,sample_mask.dtype,points_preds.dtype)
         clspoints[sample_mask.reshape(-1)] = points_preds.float()
         clspoints = clspoints.reshape((N_rays, N_sample, _cls_num))
         # clspoints[sample_mask] = points_preds # N rays, N_sample, cls
