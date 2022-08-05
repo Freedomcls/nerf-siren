@@ -4,10 +4,10 @@ def get_opts():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--root_dir', type=str,
-                        default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
+                        default='nerf_synthetic\\lego',
                         help='root directory of dataset')
     parser.add_argument('--mode', default="normal",
-                        type=str, choices=['d3', 'd3_ib', 'normal'],
+                        type=str, choices=['d3', 'd3_ib', 'normal','eg3d'],
                         help='use which system')
     parser.add_argument('--dataset_name', type=str, default='blender',
                         choices=['blender', 'blender_cls_ib', 'llff', "llff_cls", "llff_cls_ib", "replica"], # ib mens batch as img

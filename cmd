@@ -11,6 +11,10 @@ python train.py --dataset_name llff_cls --root_dir bowen_tou --N_importance 64 -
 python train.py --dataset_name blender --root_dir chair --N_importance 64 --img_wh 400 400 --num_epochs 30 --batch_size 1024  --optimizer adam --lr 5e-4 --lr_scheduler steplr --decay_step 10 20 --decay_gamma 0.5 --exp_name debug  --loss_type mse --pretrained chair_pre.pth
 
 
+# 直接训椅子
+CUDA_VISIBLE_DEVICES=4,5,6,7 python train.py --dataset_name blender --root_dir chair --N_importance 64 --img_wh 200 200 --num_epochs 30 --batch_size 1024  --optimizer adam --lr 1e-4 --lr_scheduler steplr --decay_step 10 20 --decay_gamma 0.5 --exp_name nerf_chair  --loss_type mse --num_gpus 4
+
+# 先训练nerf,再训练semantic的部分
 椅子数据处理
 训练
 python train.py --dataset_name blender_cls_ib --root_dir chair --N_importance 64 --img_wh 400 400 --num_epochs 100 --batch_size 3 --optimizer adam --lr_scheduler steplr --decay_step 10 20 50 70 --decay_gamma 0.4 --mode d3_ib --loss_type msenll --pretrained chair_pre2.pth --semantic_network conv3d --num_gpus 8 --lr 1e-3 --exp_name debug-0607 --chunk 40000
@@ -30,9 +34,11 @@ python train.py --dataset_name blender_cls_ib --root_dir chair --N_importance 64
 
 python eval.py  --root_dir chair --dataset_name blender --scene_name test_imgs --split test --img_wh 150 150 --N_importance 64 --chunk 22500 --ckpt_path ckpts/debug_memory2/\{epoch\:d\}/epoch\=299-step\=3899.ckpt
 
-python train.py --dataset_name blender_cls_ib --root_dir chair --N_importance 64 --img_wh 150 150 --num_epochs 300 --batch_size 1  --optimizer adam --lr 1e-3 --lr_scheduler steplr --decay_step 100 200 --decay_gamma 0.5 --exp_name debug_memory2  --loss_type mse --chunk 2500 --num_gpus 8
+# 分块训练
 
-python extract_color_mesh.py --root_dir chair/ --dataset_name blender --scene_name chair --img_wh 200 200 --ckpt_path ckpts/crop200x200_crop50x50_cls/\{epoch\:d\}/epoch\=299-step\=3899.ckpt  --sigma_threshold 20.0 --N_grid 256
+python train.py --dataset_name blender_cls_ib --root_dir chair --N_importance 64 --img_wh 150 150 --num_epochs 300 --batch_size 1  --optimizer adam --lr 1e-3 --lr_scheduler steplr --decay_step 100 200 --decay_gamma 0.5 --exp_name debug_memory2  --loss_type mse --chunk 2500 --num_gpus 8  --is_crop True
+
+python extract_color_mesh.py --root_dir chair/ --dataset_name blender --scene_name chair --img_wh 150 150 --ckpt_path ckpts/crop200x200_crop50x50_cls/\{epoch\:d\}/epoch\=299-step\=3899.ckpt  --sigma_threshold 20.0 --N_grid 256
 
 # replica dataset
 
@@ -40,4 +46,10 @@ python train.py --dataset_name replica --root_dir room_0/Sequence_1/ --N_importa
 
 python eval.py  --root_dir room_0/Sequence_1/ --dataset_name replica --scene_name test_replica --split test --img_wh 320 240 --N_importance 64 --chunk 40000 --ckpt_path ckpts/debug_replica/
 
-python extract_color_mesh.py --root_dir chair/ --dataset_name blender --scene_name chair --img_wh 400 400 --ckpt_path ckpts/debug-0607/\{epoch\:d\}/epoch\=30-step\=154.ckpt  --sigma_threshold 20.0 --N_grid 256
+# 可视化3D模型需要借助semantic_nerf的代码 (semantic nerf的code中)
+python3 e2.py --mesh_dir ../3D-nerf/room_0/Sequence_1/ --training_data_dir ../3D-nerf/room_0/Sequence_1/ --save_dir log/ --config_file SSR/configs/SSR_room0_config.yaml --ckpt_path nerf_replica.ckpt --N_samples 64 --N_importance 128
+Done!
+
+CUDA_VISIBLE_DEVICES=2,3,4,5 python train.py --dataset_name blender --root_dir chair --N_importance 64 --img_wh 200 200 --num_epochs 100 --batch_size 1024  --optimizer adam --lr 1e-3 --lr_scheduler steplr --decay_step 50 70 --decay_gamma 0.5 --exp_name debug  --loss_type mse  --mode eg3d --num_gpus 4
+python eval_eg3d.py --dataset_name blender --scene_name eg3d_test --split test --img_wh 200 200 --ckpt_path ckpts/debug/\{epoch\:d\}/epoch\=99-step\=97699.ckpt --root_dir chair
+python extract_color_mesh_eg3d.py --root_dir chair --dataset_name blender --scene_name eg3d_test --ckpt_path ckpts/debug_eg3d/\{epoch\:d\}/epoch\=99-step\=39999.ckpt

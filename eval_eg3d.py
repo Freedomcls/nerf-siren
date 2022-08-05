@@ -6,11 +6,7 @@ from tqdm import tqdm
 import imageio
 from argparse import ArgumentParser
 
-from models.rendering import render_rays, render_rays_3d, render_rays_3d_conv
-from models.nerf import *
-from models.nerf_cls import NeRF_3D
-from models.pointnets import PointNetDenseCls
-from models.ConvNetWork import *
+from eg3d_training.eg3d_renderer import EG3D_Renderer 
 
 from utils import load_ckpt, color_cls
 import metrics
@@ -25,9 +21,6 @@ DEBUG = ast.literal_eval(os.environ.get("DEBUG", "False"))
 
 def get_opts():
     parser = ArgumentParser()
-    parser.add_argument('--mode', default="normal",
-                        type=str, choices=['d3', 'd3_ib', 'normal'],
-                        help='use which system')
     parser.add_argument('--root_dir', type=str,
                         default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
                         help='root directory of dataset')
@@ -67,41 +60,20 @@ def get_opts():
     return parser.parse_args()
 
 
-@torch.no_grad()
-def batched_inference(models, embeddings,
-                      rays, N_samples, N_importance, use_disp,
-                      chunk,
-                      white_back,
-                      render_func,
-                      **kwargs,
-                      ):
-    """Do batched inference on rays using chunk."""
+def batch_inference(eg3d_renderer, rays):
     B = rays.shape[0]
-    chunk = 1024*32 # hard code 
+    chunk = 1024 * 4
     results = defaultdict(list)
     for i in range(0, B, chunk):
-        # print(rays[i:i+chunk].shape, B)
-        rendered_ray_chunks = \
-            render_func(models,
-                        embeddings,
-                        rays[i:i+chunk],
-                        N_samples,
-                        use_disp,
-                        0,
-                        0,
-                        N_importance,
-                        chunk,
-                        dataset.white_back,
-                        test_time=True,
-                        **kwargs)
-
-        for k, v in rendered_ray_chunks.items():
+        conditioning_params = -1
+        batch_results = eg3d_renderer.render(conditioning_params, rays[i:i+chunk,:3], rays[i:i+chunk,3:6])
+        for k, v in batch_results.items():
             results[k] += [v]
 
-    for k, v in results.items():
+    for k,v in results.items():
         results[k] = torch.cat(v, 0)
     return results
-
+        
 
 if __name__ == "__main__":
     args = get_opts()
@@ -115,57 +87,28 @@ if __name__ == "__main__":
         kwargs['spheric_poses'] = args.spheric_poses
     dataset = dataset_dict[args.dataset_name](**kwargs)
 
-    embedding_xyz = Embedding(3, 10)
-    embedding_dir = Embedding(3, 4)
-    nerf_coarse = NeRF()
-    nerf_fine = NeRF()
-    if args.semantic_network == "pointnet":
-        points = PointNetDenseCls(k=_cls, inc=6)
-    elif args.semantic_network == "conv3d":
-        points = MinkUNet14A(in_channels=4, out_channels=_cls)
-        points = ME.MinkowskiSyncBatchNorm.convert_sync_batchnorm(points)
+    eg3d_renderer = EG3D_Renderer()
 
-
-    load_ckpt(nerf_coarse, args.ckpt_path, model_name='nerf_coarse')
-    load_ckpt(nerf_fine, args.ckpt_path, model_name='nerf_fine')
-    load_ckpt(points, args.ckpt_path, model_name='points')
+    load_ckpt(eg3d_renderer, args.ckpt_path, model_name='eg3d_renderer')
     
-    nerf_coarse.cuda().eval()
-    nerf_fine.cuda().eval()
-    points.cuda().eval()
+    eg3d_renderer.cuda().eval()
 
-    models = [nerf_coarse, nerf_fine, points]
-    embeddings = [embedding_xyz, embedding_dir]
+    models = [eg3d_renderer]
 
     imgs = []
     psnrs = []
     dir_name = f'results/{args.dataset_name}/{args.scene_name}'
     os.makedirs(dir_name, exist_ok=True)
-    if args.mode == "normal":
-        render_func = render_rays
-    elif "d3" in args.mode:
-        if args.semantic_network == "pointnet":
-            render_func = render_rays_3d
-        elif args.semantic_network == "conv3d":
-            render_func = render_rays_3d_conv
 
     for i in tqdm(range(len(dataset))):
         sample = dataset[i]
         rays = sample['rays'].cuda()
+        print(rays.shape)
         conditioning_params = -1
-        results = eg3d_renderer.render(conditioning_params, rays[:,:3], rays[:,3:6])
+        with torch.no_grad():
+            results = batch_inference(eg3d_renderer, rays)
+            # results = eg3d_renderer.render(conditioning_params, rays[:,:3], rays[:,3:6])
         img_pred = results['rgb_fine'].view(h, w, 3).cpu().numpy()
-        if "d3" in args.mode:
-            cls_num = _cls
-            raw_cls_pred = results["cls_fine"].view(h, w, cls_num).cpu().numpy()
-            cls_pred = np.argmax(raw_cls_pred, axis=-1)
-            cv2.imwrite(os.path.join(dir_name, 'r_%d.png'%i), cls_pred * 10)
-            # imageio.imwrite(os.path.join(dir_name, f'{i:03d}_cls.png'), cls_pred * 255)
-            if DEBUG:
-                print(cls_pred[cls_pred!=0])
-
-            color_cls((img_pred*255).astype(np.uint8), cls_pred, \
-                f"./results/{args.dataset_name}/{args.scene_name}_cls_map", prefix=str(i))
                 
         if args.save_depth:
             depth_pred = results['depth_fine'].view(h, w).cpu().numpy()

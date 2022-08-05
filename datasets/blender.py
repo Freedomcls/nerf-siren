@@ -43,12 +43,11 @@ class BlenderDataset(Dataset):
 
         if self.split == 'train': # create buffer of all rays and rgb data
             self.image_paths = []
-            self.poses = []
             self.all_rays = []
             self.all_rgbs = []
+            self.all_poses = []
             for frame in self.meta['frames']:
                 pose = np.array(frame['transform_matrix'])[:3, :4]
-                self.poses += [pose]
                 c2w = torch.FloatTensor(pose)
 
                 image_path = os.path.join(self.root_dir, f"{frame['file_path']}.png")
@@ -66,9 +65,11 @@ class BlenderDataset(Dataset):
                                              self.near*torch.ones_like(rays_o[:, :1]),
                                              self.far*torch.ones_like(rays_o[:, :1])],
                                              1)] # (h*w, 8)
-
+                c2w = c2w.reshape(-1)
+                self.all_poses += [c2w.repeat(rays_d.shape[0],1)]
             self.all_rays = torch.cat(self.all_rays, 0) # (len(self.meta['frames])*h*w, 3)
             self.all_rgbs = torch.cat(self.all_rgbs, 0) # (len(self.meta['frames])*h*w, 3)
+            self.all_poses = torch.cat(self.all_poses, 0)
 
     def define_transforms(self):
         self.transform = T.ToTensor()
@@ -83,7 +84,8 @@ class BlenderDataset(Dataset):
     def __getitem__(self, idx):
         if self.split == 'train': # use data in the buffers
             sample = {'rays': self.all_rays[idx],
-                      'rgbs': self.all_rgbs[idx]}
+                      'rgbs': self.all_rgbs[idx],
+                      'c2w':self.all_poses[idx]}
 
         else: # create data for each image separately
             frame = self.meta['frames'][idx]
@@ -102,7 +104,8 @@ class BlenderDataset(Dataset):
                               self.near*torch.ones_like(rays_o[:, :1]),
                               self.far*torch.ones_like(rays_o[:, :1])],
                               1) # (H*W, 8)
-
+            c2w = c2w.reshape(-1)
+            c2w = c2w.repeat(rays_d.shape[0],1)
             sample = {'rays': rays,
                       'rgbs': img,
                       'c2w': c2w,
@@ -207,9 +210,12 @@ class BlenderDatasetWithClsBatch(BlenderDataset):
                 sample = {'rays':rays, 'rgbs':rgbs, 'parse':parse}
             else:
                 h, w = self.img_wh[1], self.img_wh[0]
+                frame = self.meta['frames'][idx]
+                c2w = torch.FloatTensor(frame['transform_matrix'])[:3, :4]
                 sample = {'rays': self.all_rays[idx*h*w:(idx+1)*h*w],
                           'rgbs': self.all_rgbs[idx*h*w:(idx+1)*h*w],
                           'parse': self.all_parse[idx*h*w:(idx+1)*h*w],
+                          'c2w': c2w,
                           }
     
         else: # create data for each image separately
