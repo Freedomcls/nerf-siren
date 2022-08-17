@@ -10,13 +10,22 @@ class EG3D_Renderer(torch.nn.Module):
         device = torch.device("cuda")
         seed = 0
         init_args = ()
-        init_kwargs = {'z_dim': 512, 'w_dim': 512, 'mapping_kwargs': {'num_layers': 2}, 'channel_base': 32768, 'channel_max': 512, 'fused_modconv_default': 'inference_only', 'rendering_kwargs': {'depth_resolution': 64, 'depth_resolution_importance': 64, 
+        init_kwargs = {'z_dim': 512, 'w_dim': 512, 'mapping_kwargs': {'num_layers': 2}, 'channel_base': 32768, 'channel_max': 512, 'fused_modconv_default': 'inference_only', 'rendering_kwargs': {'depth_resolution': 64, 'depth_resolution_importance': 128, 
         'ray_start': 2.0, 'ray_end': 6.0, 'box_warp': 1.6, 'avg_camera_radius': 1.7, 'white_back': True,'avg_camera_pivot': [0, 0, 0], 
         'image_resolution': 128, 'disparity_space_sampling': False, 'clamp_mode': 'softplus', 
         'superresolution_module': 'training.superresolution.SuperresolutionHybrid8XDC', 'c_gen_conditioning_zero': False, 
         'gpc_reg_prob': 0.8, 'c_scale': 1.0, 'superresolution_noise_mode': 'none', 'density_reg': 0.25, 'density_reg_p_dist': 0.004, 
         'reg_type': 'l1', 'decoder_lr_mul': 1.0, 'sr_antialias': True}, 'num_fp16_res': 0, 'sr_num_fp16_res': 4, 
         'sr_kwargs': {'channel_base': 32768, 'channel_max': 512, 'fused_modconv_default': 'inference_only'}, 'conv_clamp': None, 'c_dim': 0, 'img_resolution': 128, 'img_channels': 3}
+        
+        # init_kwargs = {'z_dim': 512, 'w_dim': 512, 'mapping_kwargs': {'num_layers': 2}, 'channel_base': 32768, 'channel_max': 512, 'fused_modconv_default': 'inference_only', 'rendering_kwargs': {'depth_resolution': 64, 'depth_resolution_importance': 64, 
+        # 'ray_start': 0.1, 'ray_end': 10.0, 'box_warp': 15.0, 'avg_camera_radius': 2.7, 'white_back': False,'avg_camera_pivot': [0, 0, 0], 
+        # 'image_resolution': 128, 'disparity_space_sampling': False, 'clamp_mode': 'softplus', 
+        # 'superresolution_module': 'training.superresolution.SuperresolutionHybrid8XDC', 'c_gen_conditioning_zero': False, 
+        # 'gpc_reg_prob': 0.8, 'c_scale': 1.0, 'superresolution_noise_mode': 'none', 'density_reg': 0.25, 'density_reg_p_dist': 0.004, 
+        # 'reg_type': 'l1', 'decoder_lr_mul': 1.0, 'sr_antialias': True}, 'num_fp16_res': 0, 'sr_num_fp16_res': 4, 
+        # 'sr_kwargs': {'channel_base': 32768, 'channel_max': 512, 'fused_modconv_default': 'inference_only'}, 'conv_clamp': None, 'c_dim': 0, 'img_resolution': 128, 'img_channels': 3}
+
         self.G = TriPlaneGenerator(*init_args, **init_kwargs)
         self.z = torch.nn.Parameter(torch.from_numpy(np.random.RandomState(seed).randn(1, self.G.z_dim)))
         # G_new = TriPlaneGenerator(*G.init_args, **G.init_kwargs).eval().requires_grad_(False).to(device)

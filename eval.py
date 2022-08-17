@@ -152,8 +152,14 @@ if __name__ == "__main__":
     for i in tqdm(range(len(dataset))):
         sample = dataset[i]
         rays = sample['rays'].cuda()
-        conditioning_params = -1
-        results = eg3d_renderer.render(conditioning_params, rays[:,:3], rays[:,3:6])
+        results = batched_inference(models, embeddings, rays,
+                                    args.N_samples, args.N_importance, args.use_disp,
+                                    args.chunk,
+                                    dataset.white_back,
+                                    render_func=render_func,
+                                    _cls_num=_cls,
+                                    network=args.semantic_network,
+                                    )
         img_pred = results['rgb_fine'].view(h, w, 3).cpu().numpy()
         if "d3" in args.mode:
             cls_num = _cls
