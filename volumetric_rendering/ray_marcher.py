@@ -52,7 +52,7 @@ class MipRayMarcher2(nn.Module):
         if rendering_options.get('white_back', False):
             composite_rgb = composite_rgb + 1 - weight_total
 
-        composite_rgb = composite_rgb * 2 - 1 # Scale to (-1, 1)
+        # composite_rgb = composite_rgb * 2 - 1 # Scale to (-1, 1)
 
         return composite_rgb, composite_depth, weights
 
