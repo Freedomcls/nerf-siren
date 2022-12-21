@@ -22,6 +22,8 @@ if __name__ == '__main__':
     elif hparams.mode == 'eg3d':
         system = EG3DSystem(hparams)
     else:
+        # default use NeRF system
+        print("use NeRF System")
         system = NeRFSystem(hparams)
 
     checkpoint_callback = ModelCheckpoint(dirpath=os.path.join(f'ckpts/{hparams.exp_name}',

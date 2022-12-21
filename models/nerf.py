@@ -56,28 +56,30 @@ class NeRF(nn.Module):
         self.in_channels_xyz = in_channels_xyz
         self.in_channels_dir = in_channels_dir
         self.skips = skips
+        self.build_models()
 
+    def build_models(self):
         # xyz encoding layers
-        for i in range(D):
+        for i in range(self.D):
             if i == 0:
-                layer = nn.Linear(in_channels_xyz, W)
-            elif i in skips:
-                layer = nn.Linear(W+in_channels_xyz, W)
+                layer = nn.Linear(self.in_channels_xyz, self.W)
+            elif i in self.skips:
+                layer = nn.Linear(self.W + self.in_channels_xyz, self.W)
             else:
-                layer = nn.Linear(W, W)
+                layer = nn.Linear(self.W, self.W)
             layer = nn.Sequential(layer, nn.ReLU(True))
             setattr(self, f"xyz_encoding_{i+1}", layer)
-        self.xyz_encoding_final = nn.Linear(W, W)
+        self.xyz_encoding_final = nn.Linear(self.W, self.W)
 
         # direction encoding layers
         self.dir_encoding = nn.Sequential(
-                                nn.Linear(W+in_channels_dir, W//2),
+                                nn.Linear(self.W + self.in_channels_dir, self.W//2),
                                 nn.ReLU(True))
 
         # output layers
-        self.sigma = nn.Linear(W, 1)
+        self.sigma = nn.Linear(self.W, 1)
         self.rgb = nn.Sequential(
-                        nn.Linear(W//2, 3),
+                        nn.Linear(self.W//2, 3),
                         nn.Sigmoid())
 
     def forward(self, x, sigma_only=False):
@@ -194,7 +196,7 @@ class SemanticNeRF(nn.Module):
         # self.gridwarper = UniformBoxWarp(0.24)  # Don't worry about this, it was added to ensure compatibility with another model. Shouldn't affect performance.
 
     def forward(self, input, z, ray_directions, **kwargs):
-        frequencies, phase_shifts = self.mapping_network(z)
+        # frequencies, phase_shifts = self.mapping_network(z)
         return self.forward_with_frequencies_phase_shifts(input, frequencies, phase_shifts, ray_directions, **kwargs)
 
     def forward_with_frequencies_phase_shifts(self, input, frequencies, phase_shifts, ray_directions, **kwargs):

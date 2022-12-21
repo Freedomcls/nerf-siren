@@ -1,5 +1,6 @@
 from pytorch_lightning import LightningModule
 from models.nerf import Embedding, NeRF
+from models.nerf_imp_lc import NeRF_Acti, NeRF_Siren
 # from models.nerf_cls import NeRF_3D
 # from models.pointnets import PointNetDenseCls
 from models.rendering import render_rays, render_rays_3d, render_rays_3d_conv
@@ -180,11 +181,17 @@ class NeRFSystem(LightningModule):
         self.embedding_dir = Embedding(3, 4) # 4 is the default number
         self.embeddings = [self.embedding_xyz, self.embedding_dir]
 
+        try:
+            init_args =  hparams.nerf_args if hparams.nerf_args else []
+            nerf = eval(hparams.nerf_model)(*init_args) 
+        except NameError as e:
+            print(hparams.nerf_model, hparams.nerf_args)
+            raise RuntimeError(e)
 
-        self.nerf_coarse = NeRF()
+        self.nerf_coarse = nerf
         self.models = [self.nerf_coarse]
         if hparams.N_importance > 0:
-            self.nerf_fine = NeRF()
+            self.nerf_fine = nerf
             self.models += [self.nerf_fine]
         if hparams.pretrained:
             load_ckpt(self.nerf_coarse, hparams.pretrained, model_name='nerf_coarse')

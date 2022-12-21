@@ -6,6 +6,8 @@ def get_opts():
     parser.add_argument('--root_dir', type=str,
                         default='nerf_synthetic\\lego',
                         help='root directory of dataset')
+    parser.add_argument("--nerf_model", default="NeRF", help="nerf model type")
+    parser.add_argument("--nerf_args", nargs="+", help="nerf argments")
     parser.add_argument('--mode', default="normal",
                         type=str, choices=['d3', 'd3_ib', 'normal','eg3d'],
                         help='use which system')
