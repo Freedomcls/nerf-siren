@@ -157,7 +157,6 @@ def first_layer_film_sine_init(m):
             m.weight.uniform_(-1 / num_input, 1 / num_input)
 
 class SemanticNeRF(nn.Module):
-    """Same architecture as TALLSIREN but adds a UniformBoxWarp to map input points to -1, 1"""
 
     def __init__(self, input_dim=2, z_dim=100, hidden_dim=256, output_dim=1, device=None):
         super().__init__()
