@@ -1,8 +1,8 @@
 from pytorch_lightning import LightningModule
-# from models.nerf import Embedding, NeRF
+from models.nerf import Embedding, NeRF
 # from models.nerf_cls import NeRF_3D
 # from models.pointnets import PointNetDenseCls
-# from models.rendering import render_rays, render_rays_3d, render_rays_3d_conv
+from models.rendering import render_rays, render_rays_3d, render_rays_3d_conv
 # from models.ConvNetWork import *
 
 # optimizer, scheduler, visualization
@@ -21,6 +21,8 @@ class EG3DSystem(LightningModule):
         self.loss = loss_dict[hparams.loss_type]()
         self.eg3d_renderer = EG3D_Renderer()
         self.models = [self.eg3d_renderer]
+        if hparams.pretrained:
+            load_ckpt(self.eg3d_renderer, hparams.pretrained, model_name='eg3d_renderer')
         # self.embedding_xyz = Embedding(3, 10) # 10 is the default number
         # self.embedding_dir = Embedding(3, 4) # 4 is the default number
         # self.embeddings = [self.embedding_xyz, self.embedding_dir]
@@ -38,8 +40,10 @@ class EG3DSystem(LightningModule):
 
     def decode_batch(self, batch):
         rays = batch['rays'] # (B, 8)
+        # semantic = batch['semantic']
         rgbs = batch['rgbs'] # (B, 3)
         return rays, rgbs
+        # return rays, rgbs, semantic
 
     def forward(self, rays):
         """Do batched inference on rays using chunk."""
@@ -66,6 +70,8 @@ class EG3DSystem(LightningModule):
         # for k, v in results.items():
         #     results[k] = torch.cat(v, 0)
         conditioning_params = -1
+        # conditioning_params = torch.tensor([-0.9250140190124512,0.2748899757862091,-0.2622683644294739,-1.0572376251220703,-0.3799331784248352,-0.6692678928375244,0.6385383605957031,2.5740303993225098,0.0,0.6903012990951538,0.7235219478607178,2.9166102409362793,0.0,0.0,0.0,1.0,177.77776499100293,0,0.5,0,177.77776499100293,0.5,0,0,1],device=rays.device)
+        # conditioning_params = conditioning_params.unsqueeze(0)
         results = self.eg3d_renderer.render(conditioning_params, rays[:,:3], rays[:,3:6])
         #results['rgb_coarse'] = results['rgb_fine']
         return results
@@ -105,6 +111,7 @@ class EG3DSystem(LightningModule):
     def training_step(self, batch, batch_nb):
         log = {'lr': get_learning_rate(self.optimizer)}
         rays, rgbs = self.decode_batch(batch)
+        # rays, rgbs, semantic = self.decode_batch(batch)
         if self.hparams.is_use_mixed_precision:
             with torch.cuda.amp.autocast():
                 results = self(rays) # all pics rays concat

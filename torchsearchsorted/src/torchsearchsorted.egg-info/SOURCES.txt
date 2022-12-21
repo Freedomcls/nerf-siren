@@ -2,6 +2,8 @@ LICENSE
 README.md
 setup.py
 src/cpu/searchsorted_cpu_wrapper.cpp
+src/cuda/searchsorted_cuda_kernel.cu
+src/cuda/searchsorted_cuda_wrapper.cpp
 src/torchsearchsorted/__init__.py
 src/torchsearchsorted/searchsorted.py
 src/torchsearchsorted/utils.py

@@ -246,7 +246,9 @@ class ReplicaDatasetCache(Dataset):
     def read_meta_train(self):
         self.train_Ts = torch.from_numpy(self.train_samples["T_wc"]).float()
         self.train_image = torch.from_numpy(self.train_samples["image"]).float().contiguous()
+        self.train_semantic = torch.from_numpy(self.train_samples["semantic"]).float().contiguous()
         self.all_rgbs = self.train_image.reshape(-1, self.train_image.shape[-1]) # [num_train*H*W, 8]
+        # self.all_semantic = self.train_semantic.reshape(-1,self.train_semantic.shape[-1])
         self.all_rays = create_rays(self.train_num, self.train_Ts, self.H, self.W, self.fx, self.fy, self.cx, self.cy,
                         self.near, self.far, use_viewdirs=self.use_viewdir, convention=self.convention)
         num_img, num_ray, ray_dim = self.all_rays.shape
@@ -266,8 +268,16 @@ class ReplicaDatasetCache(Dataset):
     def __getitem__(self, idx):
         if self.split == 'train':
             sample = {'rays':self.all_rays[idx], 'rgbs':self.all_rgbs[idx]}
+            # sample = {'rays':self.all_rays[idx], 'semantic':self.all_semantic[idx], 'rgbs':self.all_rgbs[idx]}
+            # print('1111111')
+            print('rays_shape', self.all_rays[idx].shape)
+            print('rgb_shape',self.all_rgbs[idx].shape)
+            # print('semantic',self.all_semantic[idx].shape)
+            # print(self.all_rgbs[idx])
         else:
             rays = self.all_rays[idx]
             rgbs = self.all_rgbs[idx]
             sample = {'rays':rays, 'rgbs':rgbs}
+            # print('2222222')
+            # print(sample)
         return sample

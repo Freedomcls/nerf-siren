@@ -8,7 +8,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TestTubeLogger
 from pytorch_lightning.plugins import DDPPlugin
-
+import torch.utils.tensorboard as tensorboard
 
 if __name__ == '__main__':
     hparams = get_opts()

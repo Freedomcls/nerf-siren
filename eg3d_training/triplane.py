@@ -9,6 +9,7 @@
 # its affiliates is strictly prohibited.
 
 import torch
+import torch.nn as nn
 from torch_utils import persistence
 from eg3d_training.networks_stylegan2 import Generator as StyleGAN2Backbone
 from volumetric_rendering.renderer import ImportanceRenderer
@@ -40,6 +41,8 @@ class TriPlaneGenerator(torch.nn.Module):
         self.backbone = StyleGAN2Backbone(z_dim, c_dim, w_dim, img_resolution=256, img_channels=32*3, mapping_kwargs=mapping_kwargs, **synthesis_kwargs)
         # self.superresolution = dnnlib.util.construct_class_by_name(class_name=rendering_kwargs['superresolution_module'], channels=32, img_resolution=img_resolution, sr_num_fp16_res=sr_num_fp16_res, sr_antialias=rendering_kwargs['sr_antialias'], **sr_kwargs)
         self.decoder = OSGDecoder(32, {'decoder_lr_mul': rendering_kwargs.get('decoder_lr_mul', 1), 'decoder_output_dim': 3})
+        # self.embedding_net_1 = nn.Conv2d(in_channels = 99, out_channels = 96, kernel_size=1,stride=1,padding=0)
+        # self.embedding_net_2 = nn.Conv2d(in_channels = 192, out_channels = 96, kernel_size=1,stride=1,padding=0)
         self.neural_rendering_resolution = 64
         self.rendering_kwargs = rendering_kwargs
     
@@ -52,8 +55,12 @@ class TriPlaneGenerator(torch.nn.Module):
         return self.backbone.mapping(z, c * self.rendering_kwargs.get('c_scale', 0), truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, update_emas=update_emas)
 
     def synthesis2(self, ws, ray_origins, ray_directions, neural_rendering_resolution=None, update_emas=False, cache_backbone=False, use_cached_backbone=False, **synthesis_kwargs):
+    # def synthesis2(self, ws, ray_origins, ray_directions, semantic_map, neural_rendering_resolution=None, update_emas=False, cache_backbone=False, use_cached_backbone=False, **synthesis_kwargs):
         # planes = self.planes
+        # planes = self.backbone.synthesis(ws, semantic_map, update_emas=update_emas, **synthesis_kwargs)
         planes = self.backbone.synthesis(ws, update_emas=update_emas, **synthesis_kwargs)
+        print('1',planes.shape)
+        
         # Reshape output into three 32-channel planes
         planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
         # Perform volume rendering
@@ -79,6 +86,17 @@ class TriPlaneGenerator(torch.nn.Module):
             planes = self._last_planes
         else:
             planes = self.backbone.synthesis(ws, update_emas=update_emas, **synthesis_kwargs)
+
+            real_cls = real_cls.permute(0,3,1,2)
+            # print('3',real_cls.shape)
+            # print('2',real_cls.shape,real_cls)
+            real_cls = self.embedding_net_1(real_cls)
+            planes = torch.cat([planes, real_cls], dim=1)
+            # print(planes.shape)
+            # planes = training_loop.embedding_net_2(planes)
+        
+            planes = self.embedding_net_2(planes)
+
         if cache_backbone:
             self._last_planes = planes
 
@@ -122,21 +140,14 @@ class TriPlaneGenerator(torch.nn.Module):
 
 from eg3d_training.networks_stylegan2 import FullyConnectedLayer
 
+
 class OSGDecoder(torch.nn.Module):
     def __init__(self, n_features, options):
         super().__init__()
-        self.hidden_dim = 128
+        self.hidden_dim = 64
 
         self.net = torch.nn.Sequential(
             FullyConnectedLayer(n_features, self.hidden_dim, lr_multiplier=options['decoder_lr_mul']),
-            torch.nn.Softplus(),
-            FullyConnectedLayer(self.hidden_dim, self.hidden_dim, lr_multiplier=options['decoder_lr_mul']),
-            torch.nn.Softplus(),
-            FullyConnectedLayer(self.hidden_dim, self.hidden_dim, lr_multiplier=options['decoder_lr_mul']),
-            torch.nn.Softplus(),
-            FullyConnectedLayer(self.hidden_dim, self.hidden_dim, lr_multiplier=options['decoder_lr_mul']),
-            torch.nn.Softplus(),
-            FullyConnectedLayer(self.hidden_dim, self.hidden_dim, lr_multiplier=options['decoder_lr_mul']),
             torch.nn.Softplus(),
             FullyConnectedLayer(self.hidden_dim, 1 + options['decoder_output_dim'], lr_multiplier=options['decoder_lr_mul'])
         )
@@ -154,3 +165,37 @@ class OSGDecoder(torch.nn.Module):
         rgb = torch.sigmoid(x[..., 1:])*(1 + 2*0.001) - 0.001 # Uses sigmoid clamping from MipNeRF
         sigma = x[..., 0:1]
         return {'rgb': rgb, 'sigma': sigma}
+
+
+# class OSGDecoder(torch.nn.Module):
+#     def __init__(self, n_features, options):
+#         super().__init__()
+#         self.hidden_dim = 128
+
+#         self.net = torch.nn.Sequential(
+#             FullyConnectedLayer(n_features, self.hidden_dim, lr_multiplier=options['decoder_lr_mul']),
+#             torch.nn.Softplus(),
+#             FullyConnectedLayer(self.hidden_dim, self.hidden_dim, lr_multiplier=options['decoder_lr_mul']),
+#             torch.nn.Softplus(),
+#             FullyConnectedLayer(self.hidden_dim, self.hidden_dim, lr_multiplier=options['decoder_lr_mul']),
+#             torch.nn.Softplus(),
+#             FullyConnectedLayer(self.hidden_dim, self.hidden_dim, lr_multiplier=options['decoder_lr_mul']),
+#             torch.nn.Softplus(),
+#             FullyConnectedLayer(self.hidden_dim, self.hidden_dim, lr_multiplier=options['decoder_lr_mul']),
+#             torch.nn.Softplus(),
+#             FullyConnectedLayer(self.hidden_dim, 1 + options['decoder_output_dim'], lr_multiplier=options['decoder_lr_mul'])
+#         )
+        
+#     def forward(self, sampled_features, ray_directions):
+#         # Aggregate features
+#         sampled_features = sampled_features.mean(1)
+#         x = sampled_features
+
+#         N, M, C = x.shape
+#         x = x.view(N*M, C)
+
+#         x = self.net(x)
+#         x = x.view(N, M, -1)
+#         rgb = torch.sigmoid(x[..., 1:])*(1 + 2*0.001) - 0.001 # Uses sigmoid clamping from MipNeRF
+#         sigma = x[..., 0:1]
+#         return {'rgb': rgb, 'sigma': sigma}

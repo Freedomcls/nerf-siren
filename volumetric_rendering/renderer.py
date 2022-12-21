@@ -107,7 +107,7 @@ class ImportanceRenderer(torch.nn.Module):
 
 
         out = self.run_model(planes, decoder, sample_coordinates, sample_directions, rendering_options)
-        colors_coarse = out['rgb']
+        colors_coarse = out['rgb']  # 65536 = 64 (depth resolution) * 1024
         # print(torch.max(colors_coarse),torch.min(colors_coarse))
         densities_coarse = out['sigma']
         colors_coarse = colors_coarse.reshape(batch_size, num_rays, samples_per_ray, colors_coarse.shape[-1])
@@ -142,6 +142,7 @@ class ImportanceRenderer(torch.nn.Module):
         return rgb_coarse, depth_coarse, weights_coarse.sum(2), rgb_final, depth_final, weights.sum(2)
 
     def run_model(self, planes, decoder, sample_coordinates, sample_directions, options):
+        self.plane_axes = self.plane_axes.to(planes.device)
         sampled_features = sample_from_planes(self.plane_axes, planes, sample_coordinates, padding_mode='zeros', box_warp=options['box_warp'])
 
         out = decoder(sampled_features, sample_directions)

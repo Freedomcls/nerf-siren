@@ -50,8 +50,19 @@ python eval.py  --root_dir room_0/Sequence_1/ --dataset_name replica --scene_nam
 python3 e2.py --mesh_dir ../3D-nerf/room_0/Sequence_1/ --training_data_dir ../3D-nerf/room_0/Sequence_1/ --save_dir log/ --config_file SSR/configs/SSR_room0_config.yaml --ckpt_path nerf_replica.ckpt --N_samples 64 --N_importance 128
 Done!
 
+CUDA_VISIBLE_DEVICES=2,3,4,5 python train.py --dataset_name blender --root_dir chair --N_importance 64 --img_wh 128 128 --num_epochs 100 --batch_size 1024  --optimizer adam --lr 1e-3 --lr_scheduler steplr --decay_step 50 70 --decay_gamma 0.5 --exp_name debug  --loss_type mse  --mode eg3d --num_gpus 4
 CUDA_VISIBLE_DEVICES=2,3,4,5 python train.py --dataset_name blender --root_dir chair --N_importance 64 --img_wh 200 200 --num_epochs 100 --batch_size 1024  --optimizer adam --lr 1e-3 --lr_scheduler steplr --decay_step 50 70 --decay_gamma 0.5 --exp_name debug  --loss_type mse  --mode eg3d --num_gpus 4
 python eval_eg3d.py --dataset_name blender --scene_name eg3d_test --split test --img_wh 200 200 --ckpt_path ckpts/debug/\{epoch\:d\}/epoch\=99-step\=97699.ckpt --root_dir chair
 python extract_color_mesh_eg3d.py --root_dir chair --dataset_name blender --scene_name eg3d_test --ckpt_path ckpts/debug_eg3d/\{epoch\:d\}/epoch\=99-step\=39999.ckpt
 
 CUDA_VISIBLE_DEVICES=2,3,4,5 python train.py --dataset_name blender --root_dir chair --N_importance 64 --img_wh 200 200 --num_epochs 500 --batch_size 1024  --optimizer adam --lr 1e-3 --lr_scheduler steplr --decay_step 250 400 --decay_gamma 0.5 --exp_name debug_eg3d3  --loss_type mse  --mode eg3d --num_gpus 4 --ckpt_path ckpts/debug_eg3d3/\{epoch\:d\}/epoch\=279-step\=273559.ckpt
+
+需要载入模型 更改channel_max channel_base c_dim condition_params
+# to do 
+1 gen sample 输入我的condition
+2 3D_nerf训练 缩小decoder
+3 载入全部模型
+
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 python train.py --dataset_name replica --root_dir room_0/Sequence_1/ --N_importance 64 --img_wh 320 240 --num_epochs 60 --batch_size 1024  --optimizer adam --lr 1e-3 --lr_scheduler steplr --decay_step 30 50 --decay_gamma 0.5 --exp_name debug_replica  --loss_type mse --chunk 40000 --mode eg3d --num_gpus 4
+CUDA_VISIBLE_DEVICES=5,6,7 python train.py --dataset_name replica --root_dir room_0/Sequence_1/ --N_importance 64 --img_wh 320 240 --num_epochs 16 --batch_size 1024  --optimizer adam --lr 5e-4 --lr_scheduler steplr --decay_step 4 8 --decay_gamma 0.5 --exp_name debug_replica  --loss_type mse --chunk 40000 --num_gpus 3

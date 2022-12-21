@@ -1,0 +1,2 @@
+rays: 1024 * 8
+render: 1024 * 64(N sample) *3 

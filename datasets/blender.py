@@ -47,7 +47,9 @@ class BlenderDataset(Dataset):
             self.all_rgbs = []
             self.all_poses = []
             for frame in self.meta['frames']:
-                pose = np.array(frame['transform_matrix'])[:3, :4]
+                matrix = self.meta['frames'][0]['transform_matrix']
+                pose = np.array(matrix)[:3,:4]
+                # pose = np.array(frame['transform_matrix'])[:3, :4]
                 c2w = torch.FloatTensor(pose)
 
                 image_path = os.path.join(self.root_dir, f"{frame['file_path']}.png")
@@ -116,7 +118,7 @@ class BlenderDataset(Dataset):
 class BlenderDatasetWithClsBatch(BlenderDataset):
     def __len__(self):
         if self.split == 'train':
-            return len(self.image_paths)
+            return len(self.image_paths)*10
         if self.split == 'val':
             return 4 # only validate 8 images (to support <=8 gpus)
             # return len(self.image_paths)
@@ -150,7 +152,9 @@ class BlenderDatasetWithClsBatch(BlenderDataset):
             self.all_parse = []
 
             for frame in self.meta['frames']:
-                pose = np.array(frame['transform_matrix'])[:3, :4]
+                matrix = self.meta['frames'][0]['transform_matrix']
+                pose = np.array(matrix)[:3,:4]
+                # pose = np.array(frame['transform_matrix'])[:3, :4]
                 self.poses += [pose]
                 c2w = torch.FloatTensor(pose)
 
@@ -191,9 +195,10 @@ class BlenderDatasetWithClsBatch(BlenderDataset):
             self.all_parse = torch.cat(self.all_parse, 0)
 
     def __getitem__(self, idx):
+        idx = idx % 10
         if self.split == 'train': # use data in the buffers
             if self.is_crop:
-                crop_size = (50,50)
+                crop_size = (32,32)
                 h, w = self.img_wh[1], self.img_wh[0]
                 h_crop_begin = random.randint(0, h - crop_size[0] - 1)
                 w_crop_begin = random.randint(0, w - crop_size[1] - 1)
