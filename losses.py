@@ -7,12 +7,145 @@ import ast
 
 DEBUG = ast.literal_eval(os.environ.get("DEBUG", "False"))
 
+
+from models.lpips.networks import get_network, LinLayers
+from models.lpips.utils import get_state_dict
+from models.lpips.perceptual import Perceptual_loss134, VGGLoss
+
+
+class PerceptualLoss(nn.Module):
+    def __init__(self):
+        super(PerceptualLoss, self).__init__()
+
+        # pretrained network
+        self.net = get_network()  # .to("cuda")
+
+        # linear layers
+        self.lin = LinLayers(self.net.n_channels_list)  # .to("cuda")
+        self.lin.load_state_dict(get_state_dict())
+        # self.lin.load_state_dict(get_state_dict(net_type, version))
+
+    def forward(self, inputs, targets):
+        feat_x, feat_y = self.net(inputs['rgb_coarse']), self.net(targets)
+        # print("feature_shape",feat_x[0].shape)
+
+        diff = [(fx - fy) ** 2 for fx, fy in zip(feat_x, feat_y)]
+        res = [l(d).mean((2, 3), True) for d, l in zip(diff, self.lin)]
+
+        loss = torch.sum(torch.cat(res, 0))
+        
+        if 'rgb_fine' in inputs:
+            # inputs['rgb_fine'] = inputs['rgb_fine'].transpose(1,0)
+            # targets = targets.transpose(1,0)
+            feat_x, feat_y = self.net(inputs['rgb_fine']), self.net(targets)
+
+            diff = [(fx - fy) ** 2 for fx, fy in zip(feat_x, feat_y)]
+            res = [l(d).mean((2, 3), True) for d, l in zip(diff, self.lin)]
+
+            loss += torch.sum(torch.cat(res, 0))                
+        
+        return loss
+
+class PercepMseLoss(nn.Module):
+    r"""Creates a criterion that measures
+    Learned Perceptual Image Patch Similarity (LPIPS).
+    Arguments:
+        net_type (str): the network type to compare the features:
+                        'alex' | 'squeeze' | 'vgg'. Default: 'alex'.
+        version (str): the version of LPIPS. Default: 0.1.
+    """
+    # def __init__(self, net_type: str = 'alex', version: str = '0.1'):
+
+    #     assert version in ['0.1'], 'v0.1 is only supported now'
+
+    #     super(PerceptualLoss, self).__init__()
+    def __init__(self):
+        super(PercepMseLoss, self).__init__()
+
+        # pretrained network
+        self.net = get_network()  # .to("cuda")
+
+        # linear layers
+        self.lin = LinLayers(self.net.n_channels_list)  # .to("cuda")
+        self.lin.load_state_dict(get_state_dict())
+        # self.lin.load_state_dict(get_state_dict(net_type, version))
+        self.loss = nn.MSELoss(reduction='mean')
+
+    def forward(self, inputs, targets):
+        # perceptual loss
+        print("mse_inputs_target", inputs['rgb_coarse'].shape, targets.shape)
+        feat_x, feat_y = self.net(inputs['rgb_coarse']), self.net(targets)
+        print("feature_shape",feat_x[0].shape)
+        diff = [(fx - fy) ** 2 for fx, fy in zip(feat_x, feat_y)]
+        res = [l(d).mean((2, 3), True) for d, l in zip(diff, self.lin)]
+
+        per_loss = torch.sum(torch.cat(res, 0))
+        # per_loss = torch.sum(torch.cat(res, 0)) / inputs['rgb_coarse'].shape[0]
+        
+        if 'rgb_fine' in inputs:
+            # inputs['rgb_fine'] = inputs['rgb_fine'].transpose(1,0)
+            # targets = targets.transpose(1,0)
+            feat_x, feat_y = self.net(inputs['rgb_fine']), self.net(targets)
+
+            diff = [(fx - fy) ** 2 for fx, fy in zip(feat_x, feat_y)]
+            res = [l(d).mean((2, 3), True) for d, l in zip(diff, self.lin)]
+
+            per_loss += torch.sum(torch.cat(res, 0))
+
+        # print("per_loss",per_loss)
+        
+        # mse loss
+        mse_loss = self.loss(inputs['rgb_coarse'], targets)
+        if 'rgb_fine' in inputs:
+            mse_loss += self.loss(inputs['rgb_fine'], targets)        
+        # print("mse_loss",mse_loss)
+
+        loss = 0.4*per_loss + mse_loss
+
+        return loss
+
+class perceptual(nn.Module):
+    def __init__(self):
+        super(perceptual, self).__init__()
+        
+        # self.vgg_fea= Vgg19_out()
+        # self.img1_vggFea = vgg_fea(img1_torch)
+    
+        self.total_perceptual_loss = VGGLoss()
+        self.perceptual_loss134 = Perceptual_loss134()
+
+    def forward(self, inputs, targets):
+        if targets.shape[0] == 76800:
+            inputs_1 = inputs['rgb_coarse'].view(1,3,320,240)
+            tar = targets.view(1,3,320,240)
+            if 'rgb_fine' in inputs:
+                inputs_2 = inputs['rgb_fine'].view(1,3,320,240)                
+        elif targets.shape[0] == 1024:
+            inputs_1 = inputs['rgb_coarse'].view(1,3,32,32)
+            tar = targets.view(1,3,32,32)
+            if 'rgb_fine' in inputs:
+                inputs_2 = inputs['rgb_fine'].view(1,3,32,32)
+        else:
+            print("shape error")        
+
+        print("inputs_1", inputs_1.shape)
+
+        loss = self.total_perceptual_loss(inputs_1, tar)
+        # loss = self.perceptual_loss134(inputs_1, tar)
+
+        if 'rgb_fine' in inputs:
+            loss += self.total_perceptual_loss(inputs_2, tar)
+            # loss = self.perceptual_loss134(inputs_2, tar)           
+        
+        return loss
+
 class MSELoss(nn.Module):
     def __init__(self):
         super(MSELoss, self).__init__()
         self.loss = nn.MSELoss(reduction='mean')
 
-    def forward(self, inputs, targets):
+    def forward(self, inputs, targets):#target shape (1024, 3) (76800,3)
+        # print("mse_inputs_target", inputs['rgb_coarse'].shape, targets.shape)
         loss = self.loss(inputs['rgb_coarse'], targets)
         if 'rgb_fine' in inputs:
             loss += self.loss(inputs['rgb_fine'], targets)
@@ -99,4 +232,5 @@ class MSENLLLoss(nn.Module):
 
         return loss
 
-loss_dict = {'mse': MSELoss, "msece": MSECELoss, "msenll": MSENLLLoss}
+# loss_dict = {'mse': MSELoss, "msece": MSECELoss, "msenll": MSENLLLoss, "perceptual": PerceptualLoss, "pm": PercepMseLoss}
+loss_dict = {'mse': MSELoss, "msece": MSECELoss, "msenll": MSENLLLoss, "perceptual": perceptual, "pm": PercepMseLoss}
