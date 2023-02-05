@@ -1,9 +1,9 @@
 from pytorch_lightning import LightningModule
-from models.nerf import Embedding, NeRF
+from models.nerf import Embedding, NeRF, SemanticNeRF, swinNeRF
 from models.nerf_imp_lc import NeRF_Acti, NeRF_Siren
 # from models.nerf_cls import NeRF_3D
 # from models.pointnets import PointNetDenseCls
-from models.rendering import render_rays, render_rays_3d, render_rays_3d_conv
+from models.rendering import render_rays, render_semantic_rays, render_rays_3d, render_rays_3d_conv
 # from models.ConvNetWork import *
 
 # optimizer, scheduler, visualization
@@ -201,19 +201,37 @@ class NeRFSystem(LightningModule):
     def decode_batch(self, batch):
         rays = batch['rays'] # (B, 8)
         rgbs = batch['rgbs'] # (B, 3)
+        # img = batch['img'] 
+        # return rays, rgbs, img
         return rays, rgbs
 
     def forward(self, rays):
+    # def forward(self, rays, img):
         """Do batched inference on rays using chunk."""
         rays = rays.reshape(-1,8) # todo
         B = rays.shape[0] # B is equal to H*W
         results = defaultdict(list)
+        # import pdb; pdb.set_trace()
+        # self.models[0].parameters().requires_grad(enc_flag=True)
+        # self.models[1].parameters().requires_grad(enc_flag=True)
+        
+        # net = self.models[0]
+        # devices = []
+        # sd = net.state_dict()
+        # for v in sd.values():
+        #     if v.device not in devices:
+        #         devices.append(v.device)
+
+        # for d in devices:
+        #     print(d)
         # set chunk as large as possible
         for i in range(0, B, self.hparams.chunk):
-            rendered_ray_chunks = \
-                render_rays(self.models,
+            rendered_ray_chunks = render_rays(self.models,
+            # rendered_ray_chunks = render_semantic_rays(self.models,
                             self.embeddings,
                             rays[i:i+self.hparams.chunk],
+                            # [x[i:i+self.hparams.chunk] for x in img],
+                            # img,
                             self.hparams.N_samples,
                             self.hparams.use_disp,
                             self.hparams.perturb,
@@ -263,12 +281,18 @@ class NeRFSystem(LightningModule):
     
     def training_step(self, batch, batch_nb):
         log = {'lr': get_learning_rate(self.optimizer)}
+        # rays, rgbs, img = self.decode_batch(batch)
         rays, rgbs = self.decode_batch(batch)
         if self.hparams.is_use_mixed_precision:
             with torch.cuda.amp.autocast():
                 results = self(rays) # all pics rays concat
+                # results = self(rays,img) # all pics rays concat
         else:
-            results = self(rays)
+            # results = self(rays,img)
+            results = self(rays) # all pics rays concat
+
+        # print("result", results['rgb_coarse'],results['rgb_coarse'].shape)
+        # print("rgbs", rgbs,rgbs.shape)
         log['train/loss'] = loss = self.loss(results, rgbs)
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
 
@@ -283,9 +307,13 @@ class NeRFSystem(LightningModule):
 
     def validation_step(self, batch, batch_nb):
         rays, rgbs = self.decode_batch(batch)
+        # rays, rgbs, img = self.decode_batch(batch)
         rays = rays.squeeze() # (H*W, 3)
         rgbs = rgbs.squeeze() # (H*W, 3)
         results = self(rays)
+        # print("validate_rgbs", rgbs,rgbs.shape)
+        
+        # results = self(rays,img)
         log = {'val_loss': self.loss(results, rgbs)}
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
     
@@ -298,7 +326,7 @@ class NeRFSystem(LightningModule):
             stack = torch.stack([img_gt, img, depth]) # (3, 3, H, W)
             self.logger.experiment.add_images('val/GT_pred_depth',
                                                stack, self.global_step)
-
+        print("psnr_result", results[f'rgb_{typ}'].shape, rgbs.shape)
         log['val_psnr'] = psnr(results[f'rgb_{typ}'], rgbs)
         return log
 

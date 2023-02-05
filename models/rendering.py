@@ -153,10 +153,10 @@ def render_rays(models,
             # out_chunks += [model(xyzdir_embedded, device=rays.device, sigma_only=weights_only)]
         
         # print("out_chunks", out_chunks[0].shape)
-        print("white_back", white_back)
+        # print("white_back", white_back)
 
         out = torch.cat(out_chunks, 0)
-        print("concat_out_chunks", out.shape)
+        # print("concat_out_chunks", out.shape)
         if weights_only:
             sigmas = out.view(N_rays, N_samples_)
         else:
@@ -186,7 +186,7 @@ def render_rays(models,
         if weights_only:
             return weights
         
-        print("weights", weights.shape)
+        # print("weights", weights.shape)
         # compute final weighted outputs
         rgb_final = torch.sum(weights.unsqueeze(-1)*rgbs, -2) # (N_rays, 3)
         depth_final = torch.sum(weights*z_vals, -1) # (N_rays)

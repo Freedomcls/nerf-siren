@@ -8,6 +8,9 @@ import imageio
 from imgviz import label_colormap
 import torch
 import math
+import torchvision.transforms as transforms
+from datasets import augmentations
+from PIL import Image
 
 def create_rays(num_rays, Ts_c2w, height, width, fx, fy, cx, cy, near, far, c2w_staticcam=None, depth_type="z",
             use_viewdirs=True, convention="opencv"):
@@ -222,6 +225,31 @@ class ReplicaDatasetCache(Dataset):
             #     self.train_samples["semantic_remap"][self.train_samples["semantic"]== self.semantic_classes[i]] = i
             #     self.train_samples["semantic_remap_clean"][self.train_samples["semantic_clean"]== self.semantic_classes[i]] = i
             #     self.test_samples["semantic_remap"][self.test_samples["semantic"]== self.semantic_classes[i]] = i
+        self.source_transform = transforms.Compose([
+            transforms.Resize((224, 224), interpolation=Image.NEAREST),
+            augmentations.ToOneHot(99),
+            transforms.ToTensor()])
+
+        self.image = self.load_data()
+        # self.img = self.image.view(1, *self.image.size()).float()
+        # self.img = [x.view(1, *x.size()).float() for x in self.image]
+
+    def load_data(self):
+        from_ims = []
+        for filename in os.listdir('./semantic-masks'):
+            # from_path_1 = self.source_paths[index]
+            # print(index)
+            from_im = Image.open('./semantic-masks/' + filename)
+            from_im = from_im.convert('L')
+            # from_im = self.update_labels(from_im)
+            from_im = self.source_transform(from_im)
+            from_ims.append(from_im)
+        # idx = random.randint(1, 14)
+        # from_im = Image.open('/home/chenlinsheng/3D-nerf-da/semantic-masks/' + str(idx) + '.png')
+        # from_im = from_im.convert('L')
+        # # from_im = self.update_labels(from_im)
+        # from_im = self.source_transform(from_im)
+        return from_ims
 
 
     def set_params_replica(self):
@@ -266,18 +294,19 @@ class ReplicaDatasetCache(Dataset):
         return self.all_rays.shape[0]
             
     def __getitem__(self, idx):
+        i=0
         if self.split == 'train':
+            # sample = {'rays':self.all_rays[idx], 'rgbs':self.all_rgbs[idx], 'img':self.image}
+            # print("img",self.image[0].shape)
+            # for x in self.image:
+            #     i=i+1
+            # print("how many img",i)
             sample = {'rays':self.all_rays[idx], 'rgbs':self.all_rgbs[idx]}
-            # sample = {'rays':self.all_rays[idx], 'semantic':self.all_semantic[idx], 'rgbs':self.all_rgbs[idx]}
-            # print('1111111')
-            print('rays_shape', self.all_rays[idx].shape)
-            print('rgb_shape',self.all_rgbs[idx].shape)
-            # print('semantic',self.all_semantic[idx].shape)
-            # print(self.all_rgbs[idx])
+
         else:
             rays = self.all_rays[idx]
             rgbs = self.all_rgbs[idx]
+            
+            # sample = {'rays':rays, 'rgbs':rgbs,'img':self.image}
             sample = {'rays':rays, 'rgbs':rgbs}
-            # print('2222222')
-            # print(sample)
         return sample
