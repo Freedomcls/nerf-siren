@@ -140,4 +140,7 @@ data/
 bowen*
 res/
 *.zip
-
+semantic-masks
+semantic_sample_14
+pretrained_model
+room_0

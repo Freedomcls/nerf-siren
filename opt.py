@@ -1,4 +1,6 @@
 import argparse
+from losses import loss_dict
+
 
 def get_opts():
     parser = argparse.ArgumentParser()
@@ -9,7 +11,7 @@ def get_opts():
     parser.add_argument("--nerf_model", default="NeRF", help="nerf model type")
     parser.add_argument("--nerf_args", nargs="+", help="nerf argments")
     parser.add_argument('--mode', default="normal",
-                        type=str, choices=['d3', 'd3_ib', 'normal','eg3d'],
+                        type=str, choices=['d3', 'd3_ib', 'normal','eg3d', 'test'],
                         help='use which system')
     parser.add_argument('--dataset_name', type=str, default='blender',
                         choices=['blender', 'blender_cls_ib', 'llff', "llff_cls", "llff_cls_ib", "replica"], # ib mens batch as img
@@ -36,7 +38,7 @@ def get_opts():
                         help='std dev of noise added to regularize sigma')
         
     parser.add_argument('--loss_type', type=str, default='mse',
-                        choices=['mse', "msece", "msenll", "perceptual", "pm"],
+                        choices=list(loss_dict.keys()),
                         help='loss to use')
 
     parser.add_argument('--batch_size', type=int, default=1024,

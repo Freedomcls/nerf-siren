@@ -161,3 +161,105 @@ NeRF_Siren = partial(NeRF_Acti,  D=8, W=256, in_channels_xyz=63, in_channels_dir
 #                  hidden_features=256, hidden_layers=4, outermost_linear=False, 
 #                  first_omega_0=30, hidden_omega_0=30.)
 
+
+class NeRFFeats(nn.Module):
+    def __init__(self,
+                 D=8, W=256,
+                 in_channels_xyz=63, in_channels_dir=27, 
+                 skips=[4]):
+        """
+        D: number of layers for density (sigma) encoder
+        W: number of hidden units in each layer
+        in_channels_xyz: number of input channels for xyz (3+3*10*2=63 by default)
+        in_channels_dir: number of input channels for direction (3+3*4*2=27 by default)
+        skips: add skip connection in the Dth layer
+        """
+        super(NeRFFeats, self).__init__()
+        self.D = D
+        self.W = W
+        self.in_channels_xyz = in_channels_xyz
+        self.in_channels_dir = in_channels_dir
+        self.feats_C = 64  # hard code
+
+        self.skips = skips
+        self.build_models()
+
+
+    def build_models(self):
+        # xyz encoding layers
+        for i in range(self.D):
+            if i == 0:
+                layer = nn.Linear(self.in_channels_xyz, self.W)
+            elif i in self.skips:
+                layer = nn.Linear(self.W + self.in_channels_xyz, self.W)
+            else:
+                layer = nn.Linear(self.W, self.W)
+            layer = nn.Sequential(layer, nn.ReLU(True))
+            setattr(self, f"xyz_encoding_{i+1}", layer)
+        self.xyz_encoding_final = nn.Linear(self.W, self.W)
+
+        # direction encoding layers
+        self.dir_encoding = nn.Sequential(
+                                nn.Linear(self.W + self.in_channels_dir, self.W//2),
+                                nn.ReLU(True))
+
+        # output layers
+        self.sigma = nn.Linear(self.W, 1)
+        self.rgb = nn.Sequential(
+                        nn.Linear(self.W//2, 3),
+                        nn.Sigmoid())
+        
+        self.render_feats = nn.Sequential(
+                                nn.Linear(self.W, self.W),
+                                nn.ReLU(True),
+                                nn.Linear(self.W, self.W//2),
+                                nn.ReLU(True),
+                                nn.Linear(self.W//2, self.feats_C),
+                                nn.ReLU(True))
+        
+    def forward(self, x, sigma_only=False):
+        """
+        Encodes input (xyz+dir) to rgb+sigma (not ready to render yet).
+        For rendering this ray, please see rendering.py
+
+        Inputs:
+            x: (B, self.in_channels_xyz(+self.in_channels_dir))
+               the embedded vector of position and direction
+            sigma_only: whether to infer sigma only. If True,
+                        x is of shape (B, self.in_channels_xyz)
+
+        Outputs:
+            if sigma_ony:
+                sigma: (B, 1) sigma
+            else:
+                out: (B, 4), rgb and sigma
+        """
+        if not sigma_only:
+            input_xyz, input_dir = \
+                torch.split(x, [self.in_channels_xyz, self.in_channels_dir], dim=-1)
+        else:
+            input_xyz = x
+
+        xyz_ = input_xyz
+        for i in range(self.D):
+            if i in self.skips:
+                xyz_ = torch.cat([input_xyz, xyz_], -1)
+            xyz_ = getattr(self, f"xyz_encoding_{i+1}")(xyz_)
+
+        sigma = self.sigma(xyz_)
+
+        feats = self.render_feats(xyz_)
+
+        if sigma_only:
+            return sigma
+
+        xyz_encoding_final = self.xyz_encoding_final(xyz_)
+
+        dir_encoding_input = torch.cat([xyz_encoding_final, input_dir], -1)  # add input_dir to get RGB
+        dir_encoding = self.dir_encoding(dir_encoding_input)
+        rgb = self.rgb(dir_encoding)
+
+        out = torch.cat([rgb, sigma, feats], -1)  # 3 1 64
+
+        return out
+        

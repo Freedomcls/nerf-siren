@@ -1,9 +1,9 @@
 from pytorch_lightning import LightningModule
 from models.nerf import Embedding, NeRF, SemanticNeRF, swinNeRF
-from models.nerf_imp_lc import NeRF_Acti, NeRF_Siren
+from models.nerf_imp_lc import NeRF_Acti, NeRF_Siren, NeRFFeats
 # from models.nerf_cls import NeRF_3D
 # from models.pointnets import PointNetDenseCls
-from models.rendering import render_rays, render_semantic_rays, render_rays_3d, render_rays_3d_conv
+from models.rendering import render_rays, render_semantic_rays, render_rays_3d, render_rays_3d_conv, render_rays_wf
 # from models.ConvNetWork import *
 
 # optimizer, scheduler, visualization
@@ -174,7 +174,6 @@ class NeRFSystem(LightningModule):
     def __init__(self, hparams):
         super(NeRFSystem, self).__init__()
         self.hparams = hparams
-
         self.loss = loss_dict[hparams.loss_type]()
 
         self.embedding_xyz = Embedding(3, 10) # 10 is the default number
@@ -197,6 +196,11 @@ class NeRFSystem(LightningModule):
             load_ckpt(self.nerf_coarse, hparams.pretrained, model_name='nerf_coarse')
             load_ckpt(self.nerf_fine, hparams.pretrained, model_name='nerf_fine')
             print('Model load finished')
+
+        self.set_render()
+    
+    def set_render(self):
+        self.render_func = render_rays
 
     def decode_batch(self, batch):
         rays = batch['rays'] # (B, 8)
@@ -226,7 +230,7 @@ class NeRFSystem(LightningModule):
         #     print(d)
         # set chunk as large as possible
         for i in range(0, B, self.hparams.chunk):
-            rendered_ray_chunks = render_rays(self.models,
+            rendered_ray_chunks = self.render_func(self.models,
             # rendered_ray_chunks = render_semantic_rays(self.models,
                             self.embeddings,
                             rays[i:i+self.hparams.chunk],
@@ -340,6 +344,76 @@ class NeRFSystem(LightningModule):
                         'val/psnr': mean_psnr}
                }
 
+
+class NeRFFeatsSystem(NeRFSystem):
+    def decode_batch(self, batch):
+        rays, rgbs = super().decode_batch(batch)
+        feats = batch["feats"]
+        return rays, rgbs, feats
+
+    def set_render(self):
+        self.render_func = render_rays_wf
+    
+
+    def training_step(self, batch, batch_nb):
+        log = {'lr': get_learning_rate(self.optimizer)}
+        # rays, rgbs, img = self.decode_batch(batch)
+        rays, rgbs, feats = self.decode_batch(batch)
+        if self.hparams.is_use_mixed_precision:
+            with torch.cuda.amp.autocast():
+                results = self(rays) # all pics rays concat
+                # results = self(rays,img) # all pics rays concat
+        else:
+            # results = self(rays,img)
+            results = self(rays) # all pics rays concat
+
+        # print("result", results['rgb_coarse'],results['rgb_coarse'].shape)
+        # print("rgbs", rgbs,rgbs.shape)
+        all_loss = self.loss(results, rgbs, feats)
+        if "sum" in all_loss:
+            loss = all_loss["sum"]
+            for key, val in all_loss.items():
+                log[f'train/{key}_loss'] = val
+        else:
+            loss = all_loss
+            log['train/loss'] = loss
+         
+        typ = 'fine' if 'rgb_fine' in results else 'coarse'
+
+        with torch.no_grad():
+            psnr_ = psnr(results[f'rgb_{typ}'], rgbs)
+            log['train/psnr'] = psnr_
+
+        return {'loss': loss,
+                'progress_bar': {'train_psnr': psnr_},
+                'log': log
+               }
+    
+    def validation_step(self, batch, batch_nb):
+        rays, rgbs, feats = self.decode_batch(batch)
+        # rays, rgbs, img = self.decode_batch(batch)
+        rays = rays.squeeze() # (H*W, 3)
+        rgbs = rgbs.squeeze() # (H*W, 3)
+        results = self(rays)
+        # print("validate_rgbs", rgbs,rgbs.shape)
+        
+        # results = self(rays,img)
+        all_loss = self.loss(results, rgbs, feats)["sum"]
+        log = {'val_loss': all_loss}
+        typ = 'fine' if 'rgb_fine' in results else 'coarse'
+    
+        if batch_nb == 0:
+            W, H = self.hparams.img_wh
+            img = results[f'rgb_{typ}'].view(H, W, 3).cpu()
+            img = img.permute(2, 0, 1) # (3, H, W)
+            img_gt = rgbs.view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
+            depth = visualize_depth(results[f'depth_{typ}'].view(H, W)) # (3, H, W)
+            stack = torch.stack([img_gt, img, depth]) # (3, 3, H, W)
+            self.logger.experiment.add_images('val/GT_pred_depth',
+                                               stack, self.global_step)
+        print("psnr_result", results[f'rgb_{typ}'].shape, rgbs.shape)
+        log['val_psnr'] = psnr(results[f'rgb_{typ}'], rgbs)
+        return log
 
 
 class NeRF3DSystem(NeRFSystem):

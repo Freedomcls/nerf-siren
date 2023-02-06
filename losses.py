@@ -149,9 +149,34 @@ class MSELoss(nn.Module):
         loss = self.loss(inputs['rgb_coarse'], targets)
         if 'rgb_fine' in inputs:
             loss += self.loss(inputs['rgb_fine'], targets)
-
         return loss
 
+
+
+class VGG16PercepLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, inputs, targets):
+        render_feats = inputs["feats_coarse"]
+        loss = torch.nn.functional.l1_loss(render_feats, targets)
+        if "feats_fine" in inputs:
+            loss += torch.nn.functional.l1_loss(inputs["feats_fine"], targets)
+        return loss
+
+class MSEVGG16PercepLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mse = MSELoss()
+        self.vgg = VGG16PercepLoss()
+    
+    def forward(self, inputs, rgb, feats):
+        loss = {}
+        loss["mse"] = self.mse(inputs, rgb)
+        loss["precp"] = self.vgg(inputs, feats)
+        loss["sum"] = loss["mse"] + loss["precp"]
+        return loss
+        
 
 class MSECELoss(nn.Module):
     def __init__(self):
@@ -232,5 +257,8 @@ class MSENLLLoss(nn.Module):
 
         return loss
 
+
+
+
 # loss_dict = {'mse': MSELoss, "msece": MSECELoss, "msenll": MSENLLLoss, "perceptual": PerceptualLoss, "pm": PercepMseLoss}
-loss_dict = {'mse': MSELoss, "msece": MSECELoss, "msenll": MSENLLLoss, "perceptual": perceptual, "pm": PercepMseLoss}
+loss_dict = {'mse': MSELoss, "msece": MSECELoss, "msenll": MSENLLLoss, "perceptual": perceptual, "pm": PercepMseLoss, "pm16": MSEVGG16PercepLoss}

@@ -11,6 +11,11 @@ import math
 import torchvision.transforms as transforms
 from datasets import augmentations
 from PIL import Image
+# from torchvision.models import Vgg19_out
+from utils.vgg_precep_loss import Vgg16GenFeats
+
+feats_lvl = [0]  # lvl-1-2-3 will downsample shape may mismatch
+MODEL = Vgg16GenFeats()
 
 def create_rays(num_rays, Ts_c2w, height, width, fx, fy, cx, cy, near, far, c2w_staticcam=None, depth_type="z",
             use_viewdirs=True, convention="opencv"):
@@ -80,12 +85,24 @@ def get_rays_camera(B, H, W, fx, fy,  cx, cy, depth_type, convention="opencv"):
 
     return dirs
 
+
 def get_rays_world(T_WC, dirs_C):
     R_WC = T_WC[:, :3, :3]  # Bx3x3
     dirs_W = torch.matmul(R_WC[:, None, ...], dirs_C[..., None]).squeeze(-1)
     origins = T_WC[:, :3, -1]  # Bx3
     origins = torch.broadcast_tensors(origins[:, None, :], dirs_W)[0]
     return origins, dirs_W
+
+
+
+def gen_image_feats(img, feats_layers, norm=True, resize=False):
+    """ use vgg16 """
+    img = torch.from_numpy(img).float()  # HWC
+    img = img.permute(2, 0, 1).unsqueeze(0)  # 1CHW
+    img_feats, _ = MODEL(img, feats_layers, norm=norm, resize=resize)
+    
+    return img_feats
+
 
 class ReplicaDatasetCache(Dataset):
     def __init__(self, root_dir, split='train', img_wh=(800, 800), is_crop=False):
@@ -132,9 +149,14 @@ class ReplicaDatasetCache(Dataset):
                           'semantic': [], 'T_wc': [],
                           'instance': []}
 
+        
+
         if split == 'train':
         # training samples
             self.poses = []
+
+            self.feats_gt = [[] for _ in range(len(feats_lvl))]  # add precep loss 
+
             self.image_paths = []
             for idx in train_ids:
                 image = cv2.imread(self.rgb_list[idx])[:,:,::-1] / 255.0  # change from BGR uinit 8 to RGB float
@@ -146,6 +168,12 @@ class ReplicaDatasetCache(Dataset):
                 if (self.img_h is not None and self.img_h != image.shape[0]) or \
                         (self.img_w is not None and self.img_w != image.shape[1]):
                     image = cv2.resize(image, (self.img_w, self.img_h), interpolation=cv2.INTER_LINEAR)
+                    # NOTE: here use self.img_w, self.img_h, as vgg train image resolution 224x224
+                    # print(image.shape)
+                    image_feats = gen_image_feats(image, feats_layers=feats_lvl)  
+                    _ = [self.feats_gt[i].append(image_feats[i]) for i in range(len(image_feats))]
+                    
+
                     depth = cv2.resize(depth, (self.img_w, self.img_h), interpolation=cv2.INTER_LINEAR)
                     semantic = cv2.resize(semantic, (self.img_w, self.img_h), interpolation=cv2.INTER_NEAREST)
                     if self.semantic_instance_dir is not None:
@@ -172,6 +200,7 @@ class ReplicaDatasetCache(Dataset):
                 print("{} has shape of {}, type {}.".format(key, self.train_samples[key].shape, self.train_samples[key].dtype))
         else:
             # test samples
+            self.feats_gt = [[] for _ in range(len(feats_lvl))]  # add precep loss 
             for idx in test_ids:
                 image = cv2.imread(self.rgb_list[idx])[:,:,::-1] / 255.0  # change from BGR uinit 8 to RGB float
                 depth = cv2.imread(self.depth_list[idx], cv2.IMREAD_UNCHANGED) / 1000.0  # uint16 mm depth, then turn depth from mm to meter
@@ -182,6 +211,9 @@ class ReplicaDatasetCache(Dataset):
                 if (self.img_h is not None and self.img_h != image.shape[0]) or \
                         (self.img_w is not None and self.img_w != image.shape[1]):
                     image = cv2.resize(image, (self.img_w, self.img_h), interpolation=cv2.INTER_LINEAR)
+                    image_feats = gen_image_feats(image, feats_layers=feats_lvl)  
+                    _ = [self.feats_gt[i].append(image_feats[i]) for i in range(len(image_feats))]
+
                     depth = cv2.resize(depth, (self.img_w, self.img_h), interpolation=cv2.INTER_LINEAR)
                     semantic = cv2.resize(semantic, (self.img_w, self.img_h), interpolation=cv2.INTER_NEAREST)
                     if self.semantic_instance_dir is not None:
@@ -281,6 +313,15 @@ class ReplicaDatasetCache(Dataset):
                         self.near, self.far, use_viewdirs=self.use_viewdir, convention=self.convention)
         num_img, num_ray, ray_dim = self.all_rays.shape
         self.all_rays = self.all_rays.reshape(num_img*num_ray,ray_dim)
+        self.train_feats = []
+        for i, feats in enumerate(self.feats_gt):
+            # each feat: 1xCxHxW -> NxCxHxW(vstack) ->  NxHxWxC(permute) -> N*H*WxC(reshape)
+            assert i == 0, "current we only support 0-lvl feats unsample" 
+            feats = torch.vstack(feats).permute(0, 2, 3, 1)
+            feats = feats.reshape(self.all_rgbs.shape[0], feats.shape[-1]) 
+            print(i, " feats: ",  feats.shape)
+            self.train_feats.append(feats)
+        
 
     def read_meta_test(self):
         self.test_Ts = torch.from_numpy(self.test_samples["T_wc"]).float()  # [num_test, 4, 4]
@@ -289,24 +330,34 @@ class ReplicaDatasetCache(Dataset):
                                 self.cx, self.cy, self.near, self.far, use_viewdirs=self.use_viewdir, convention=self.convention)
         num_img, num_ray, ray_dim = self.all_rays.shape
         self.all_rgbs = self.test_image.reshape(num_img, num_ray, self.test_image.shape[-1]) # [num_test, H*W, 3]
+        self.val_feats = []
+        for i, feats in enumerate(self.feats_gt):
+            # each feat: 1xCxHxW -> NxCxHxW(vstack) ->  NxHxWxC(permute) -> N*H*WxC(reshape)
+            assert i == 0, "current we only support 0-lvl feats unsample" 
+            feats = torch.vstack(feats).permute(0, 2, 3, 1)
+            feats = feats.reshape(self.all_rgbs.shape[0], self.all_rgbs.shape[1], feats.shape[-1]) 
+            print(i, " feats: ",  feats.shape)
+            self.val_feats.append(feats)
 
     def __len__(self):
         return self.all_rays.shape[0]
             
     def __getitem__(self, idx):
-        i=0
+        # i=0
         if self.split == 'train':
             # sample = {'rays':self.all_rays[idx], 'rgbs':self.all_rgbs[idx], 'img':self.image}
             # print("img",self.image[0].shape)
             # for x in self.image:
             #     i=i+1
             # print("how many img",i)
-            sample = {'rays':self.all_rays[idx], 'rgbs':self.all_rgbs[idx]}
+            sample = {'rays':self.all_rays[idx], 'rgbs':self.all_rgbs[idx], "feats": self.train_feats[0][idx]}
 
         else:
             rays = self.all_rays[idx]
             rgbs = self.all_rgbs[idx]
             
             # sample = {'rays':rays, 'rgbs':rgbs,'img':self.image}
-            sample = {'rays':rays, 'rgbs':rgbs}
+            sample = {'rays':rays, 'rgbs':rgbs, "idx": idx, "feats": self.val_feats[0][idx]}
         return sample
+
+

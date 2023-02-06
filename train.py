@@ -2,7 +2,7 @@ import os, sys
 from opt import get_opts
 import torch
 # system
-from system import NeRFSystem, NeRF3DSystem, NeRF3DSystem_ib, EG3DSystem
+from system import NeRFSystem, NeRF3DSystem, NeRF3DSystem_ib, EG3DSystem, NeRFFeatsSystem
 # pytorch-lightning
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import Trainer
@@ -21,6 +21,8 @@ if __name__ == '__main__':
         system =  NeRF3DSystem_ib(hparams)
     elif hparams.mode == 'eg3d':
         system = EG3DSystem(hparams)
+    elif hparams.mode == "test":
+        system = NeRFFeatsSystem(hparams)
     else:
         # default use NeRF system
         print("use NeRF System")
